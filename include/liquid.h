@@ -3578,7 +3578,49 @@ void ofdmflexframegen_assemble(ofdmflexframegen _q,
 int ofdmflexframegen_writesymbol(ofdmflexframegen _q,
                                  liquid_float_complex * _buffer);
 
-// 
+void ofdmflexframegen_print_sctype(ofdmflexframegen _q);
+
+//OFDMA additions
+void ofdmflexframegen_set_dummy_data(ofdmflexframegen _q, unsigned int dummy_data);
+void ofdmflexframegen_set_reallocation_delay(ofdmflexframegen _q, unsigned int delay);
+void ofdmflexframegen_deallocate_subcarrier(ofdmflexframegen _q, unsigned int subcarrier);
+void ofdmflexframegen_reallocate_subcarrier(ofdmflexframegen _q, unsigned int subcarrier);
+
+// create OFDM flexible framing generator object
+//  _M          :   number of subcarriers, >10 typical
+//  _cp_len     :   cyclic prefix length
+//  _taper_len  :   taper length (OFDM symbol overlap)
+//  _p          :   subcarrier allocation (null, pilot, data), [size: _M x 1]
+//  _fgprops    :   frame properties (modulation scheme, etc.)
+ofdmflexframegen ofdmflexframegen_create_multi_user(unsigned int    _M,
+                                         unsigned int               _cp_len,
+                                         unsigned int               _taper_len,
+                                         unsigned char *            _p,
+                                         ofdmflexframegenprops_s    * _fgprops,
+                                         unsigned int               _num_users);
+
+
+
+// destroy ofdmflexframegen object
+void ofdmflexframegen_destroy_multi_user(ofdmflexframegen _q);
+
+// reset ofdmflexframegen object internals
+void ofdmflexframegen_reset_multi_user(ofdmflexframegen _q);
+
+// assemble a frame from an array of data
+//  _q              :   OFDM frame generator object
+//  _header         :   frame header [8 bytes]
+void ofdmflexframegen_assemble_multi_user(ofdmflexframegen _q,
+                               unsigned char * _header);
+
+void ofdmflexframegen_multi_user_update_data(ofdmflexframegen _q, 
+                               unsigned char * _payload,
+                               unsigned int _payload_len,
+                               unsigned int user);
+
+
+
+ 
 // OFDM flex frame synchronizer
 //
 
@@ -3617,6 +3659,34 @@ void ofdmflexframesync_debug_disable(ofdmflexframesync _q);
 void ofdmflexframesync_debug_print(ofdmflexframesync _q,
                                    const char *      _filename);
 
+
+//OFDMA Functions
+float * ofdmflexframesync_get_evm_db(ofdmflexframesync _q);
+void ofdmflexframesync_update_subcarrier_allocation(ofdmflexframesync _q, unsigned char* new_allocation);
+void ofdmflexframegen_update_subcarrier_allocation(ofdmflexframegen _q, unsigned char* new_allocation);
+unsigned char* ofdmflexframegen_get_subcarrier_map(ofdmflexframegen _q);
+unsigned char* ofdmflexframegen_get_subcarrier_allocation(ofdmflexframegen _q);
+unsigned char* ofdmflexframesync_get_subcarrier_allocation(ofdmflexframesync _q);
+
+
+unsigned char * ofdmflexframesync_get_subcarrier_map(ofdmflexframesync _q);
+void ofdmflexframesync_print_sctype(ofdmflexframesync _q);
+
+// create OFDM flexible framing synchronizer object
+//  _M          :   number of subcarriers
+//  _cp_len     :   cyclic prefix length
+//  _taper_len  :   taper length (OFDM symbol overlap)
+//  _p          :   subcarrier allocation (null, pilot, data), [size: _M x 1]
+//  _callback   :   user-defined callback function
+//  _userdata   :   user-defined data pointer
+ofdmflexframesync ofdmflexframesync_create_multi_user(unsigned int  _M,
+                                           unsigned int             _cp_len,
+                                           unsigned int             _taper_len,
+                                           unsigned char *          _p,
+                                           framesync_callback       _callback,
+                                           void *                   _userdata,
+                                           unsigned int             user_id,
+                                           unsigned int             num_users);
 
 
 //
@@ -4359,6 +4429,8 @@ typedef enum {
     LIQUID_MODEM_ARB        // arbitrary QAM
 } modulation_scheme;
 
+modulation_scheme ofdmflexframesync_get_payload_mod_scheme(ofdmflexframesync _q);
+
 // structure for holding full modulation type descriptor
 struct modulation_type_s {
     const char * name;          // short name (e.g. 'bpsk')
@@ -4845,6 +4917,14 @@ LIQUID_FIRPFBCH2_DEFINE_API(FIRPFBCH2_MANGLE_CRCF,
 //  _p      :   output subcarrier allocation array, [size: _M x 1]
 void ofdmframe_init_default_sctype(unsigned int _M,
                                    unsigned char * _p);
+
+// initialize subcarrier allocation
+//  _M      :   number of subcarriers
+//  _p      :   output subcarrier allocation array, [size: _M x 1]
+//  guard_percentage	:    portion of outer bands to use as guard
+void ofdmframe_init_sctype(unsigned int _M,
+                                   unsigned char * _p,
+			 	   float guard_percentage);
 
 // validate subcarrier type (count number of null, pilot, and data
 // subcarriers in the allocation)

@@ -211,6 +211,55 @@ void ofdmframe_init_default_sctype(unsigned int _M,
     }
 }
 
+// initialize subcarrier allocation with variable guard
+//  _M      :   number of subcarriers
+//  _p      :   output subcarrier allocation array, [size: _M x 1]
+//
+// key: '.' (null), 'P' (pilot), '+' (data)
+// .+++P+++++++P.........P+++++++P+++
+//
+void ofdmframe_init_sctype(unsigned int _M,
+                                   unsigned char * _p,
+				   float guard_percentage)
+{
+    // validate input
+    if (_M < 6) {
+        fprintf(stderr,"warning: ofdmframe_init_default_sctype(), less than 4 subcarriers\n");
+    }
+
+    unsigned int i;
+    unsigned int M2 = _M/2;
+
+    // compute guard band
+    unsigned int G = _M * guard_percentage;
+    if (G < 2) G = 2;
+
+    // designate pilot spacing
+    unsigned int P = /*(_M > 34) ? 8 :*/ 4;
+    unsigned int P2 = P/2;
+
+    // initialize as NULL
+    for (i=0; i<_M; i++)
+        _p[i] = OFDMFRAME_SCTYPE_NULL;
+
+    // upper band
+    for (i=1; i<M2-G; i++) {
+        if ( ((i+P2)%P) == 0 )
+            _p[i] = OFDMFRAME_SCTYPE_PILOT;
+        else
+            _p[i] = OFDMFRAME_SCTYPE_DATA;
+    }
+
+    // lower band
+    for (i=1; i<M2-G; i++) {
+        unsigned int k = _M - i;
+        if ( ((i+P2)%P) == 0 )
+            _p[k] = OFDMFRAME_SCTYPE_PILOT;
+        else
+            _p[k] = OFDMFRAME_SCTYPE_DATA;
+    }
+}
+
 // validate subcarrier type (count number of null, pilot, and data
 // subcarriers in the allocation)
 //  _p          :   subcarrier allocation array, [size: _M x 1]

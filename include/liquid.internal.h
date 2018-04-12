@@ -1168,6 +1168,9 @@ void bpacketsync_reconfig(bpacketsync _q);
 
 // reconfigure internal buffers, objects, etc.
 void ofdmflexframegen_reconfigure(ofdmflexframegen _q);
+//ofdma version
+void ofdmflexframegen_reconfigure_multi_user(ofdmflexframegen _q, unsigned int user);
+
 
 // encode header
 void ofdmflexframegen_encode_header(ofdmflexframegen _q);
