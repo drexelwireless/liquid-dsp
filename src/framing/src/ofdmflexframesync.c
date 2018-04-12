@@ -619,6 +619,9 @@ void ofdmflexframesync_rxheader(ofdmflexframesync _q,
                     _q->framestats.check            = LIQUID_CRC_UNKNOWN;
                     _q->framestats.fec0             = LIQUID_FEC_UNKNOWN;
                     _q->framestats.fec1             = LIQUID_FEC_UNKNOWN;
+                    liquid_float_complex* G = ofdmframesync_get_channel(_q->fs);
+                    liquid_float_complex* G_hat = ofdmframesync_get_channel_estimate(_q->fs);
+                    unsigned int M = ofdmframesync_get_num_subcarriers(_q->fs);
 
                     // invoke callback method
                     _q->callback(_q->header,
@@ -627,7 +630,10 @@ void ofdmflexframesync_rxheader(ofdmflexframesync _q,
                                  0,
                                  0,
                                  _q->framestats,
-                                 _q->userdata);
+                                 _q->userdata,
+                                 G,
+                                 G_hat,
+                                 M);
 
                     ofdmflexframesync_reset(_q);
                 }
@@ -905,7 +911,10 @@ void ofdmflexframesync_rxpayload(ofdmflexframesync _q,
                 _q->framestats.check            = _q->check;
                 _q->framestats.fec0             = _q->fec0;
                 _q->framestats.fec1             = _q->fec1;
-
+                liquid_float_complex* G = ofdmframesync_get_channel(_q->fs);
+                liquid_float_complex* G_hat = ofdmframesync_get_channel_estimate(_q->fs);
+                unsigned int M = ofdmframesync_get_num_subcarriers(_q->fs);
+        
                 // invoke callback method
                 if(!_q->ofdma)
                 {
@@ -915,9 +924,12 @@ void ofdmflexframesync_rxpayload(ofdmflexframesync _q,
                              _q->payload_len,
                              _q->payload_valid,
                              _q->framestats,
-                             _q->userdata);
+                             _q->userdata,
+                             G,
+                             G_hat,
+                             M);
                 }
-                else
+                /*else
                 {
                     _q->callback(_q->header,
                             _q->header_valid,
@@ -926,7 +938,7 @@ void ofdmflexframesync_rxpayload(ofdmflexframesync _q,
                             _q->payload_valid,
                             _q->framestats,
                             _q->userdata);
-                }
+                }*/
 
 
 
