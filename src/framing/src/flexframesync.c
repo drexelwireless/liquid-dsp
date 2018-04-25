@@ -142,6 +142,8 @@ struct flexframesync_s {
         STATE_RXHEADER,             // receive header data
         STATE_RXPAYLOAD,            // receive payload data
     } state;
+    unsigned int start_counter;     // counter: num of samples before start of frame
+    unsigned int end_counter;       // counter: number of samples through end of frame
     unsigned int pn_counter;        // counter: num of p/n syms received
     unsigned int header_counter;    // counter: num of header syms received
     unsigned int payload_counter;   // counter: num of payload syms received
@@ -298,6 +300,8 @@ void flexframesync_reset(flexframesync _q)
         
     // reset state
     _q->state           = STATE_DETECTFRAME;
+    _q->start_counter   = 0;
+    _q->end_counter     = 0;
     _q->pn_counter      = 0;
     _q->header_counter  = 0;
     _q->payload_counter = 0;
@@ -358,6 +362,9 @@ void flexframesync_execute_seekpn(flexframesync _q,
     // push sample into pre-demod p/n sequence buffer
     windowcf_push(_q->buffer, _x);
 
+    // update packet start counter
+    _q->start_counter++;
+
     // push through pre-demod synchronizer
     int detected = detector_cccf_correlate(_q->frame_detector,
                                            _x,
@@ -369,6 +376,9 @@ void flexframesync_execute_seekpn(flexframesync _q,
     if (detected) {
         //printf("***** frame detected! tau-hat:%8.4f, dphi-hat:%8.4f, gamma:%8.2f dB\n",
         //        _q->tau_hat, _q->dphi_hat, 20*log10f(_q->gamma_hat));
+
+        // update packet end counter
+        _q->end_counter = _q->start_counter;
 
         // push buffered samples through synchronizer
         // NOTE: this will set internal state appropriately
@@ -507,6 +517,9 @@ void flexframesync_execute_rxpn(flexframesync _q,
         return;
     }
 
+    // update packet end counter
+    _q->end_counter++;
+
     // mix signal down
     float complex y;
     nco_crcf_mix_down(_q->nco_coarse, _x*0.5f/_q->gamma_hat, &y);
@@ -582,6 +595,9 @@ void flexframesync_syncpn(flexframesync _q)
 void flexframesync_execute_rxheader(flexframesync _q,
                                     float complex _x)
 {
+    // update packet end counter
+    _q->end_counter++;
+
     // mix signal down
     float complex y;
     nco_crcf_mix_down(_q->nco_coarse, _x*0.5f/_q->gamma_hat, &y);
@@ -643,6 +659,9 @@ void flexframesync_execute_rxheader(flexframesync _q,
                 _q->framestats.fec0          = LIQUID_FEC_UNKNOWN;
                 _q->framestats.fec1          = LIQUID_FEC_UNKNOWN;
 
+                _q->framestats.start_counter = _q->start_counter;
+                _q->framestats.end_counter = _q->end_counter;
+
                 // invoke callback method
                 _q->callback(_q->header,
                              _q->header_valid,
@@ -675,6 +694,9 @@ void flexframesync_execute_rxheader(flexframesync _q,
 void flexframesync_execute_rxpayload(flexframesync _q,
                                      float complex _x)
 {
+    // update packet end counter
+    _q->end_counter++;
+
     // mix signal down
     float complex y;
     nco_crcf_mix_down(_q->nco_coarse, _x*0.5f/_q->gamma_hat, &y);
@@ -724,6 +746,9 @@ void flexframesync_execute_rxpayload(flexframesync _q,
                 _q->framestats.check         = _q->check;
                 _q->framestats.fec0          = _q->fec0;
                 _q->framestats.fec1          = _q->fec1;
+
+                _q->framestats.start_counter = _q->start_counter;
+                _q->framestats.end_counter = _q->end_counter;
 
                 // invoke callback method
                 _q->callback(_q->header,
