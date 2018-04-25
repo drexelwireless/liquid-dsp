@@ -136,6 +136,8 @@ struct flexframesync_s {
     // status variables
     unsigned int    preamble_counter;   // counter: num of p/n syms received
     unsigned int    symbol_counter;     // counter: num of symbols received
+    unsigned int    start_counter;      // counter: num of samples before start of frame
+    unsigned int    end_counter;        // counter: num of samples through end of frame
     enum {
         FLEXFRAMESYNC_STATE_DETECTFRAME=0,  // detect frame (seek p/n sequence)
         FLEXFRAMESYNC_STATE_RXPREAMBLE,     // receive p/n sequence
@@ -301,6 +303,8 @@ void flexframesync_reset(flexframesync _q)
     _q->state           = FLEXFRAMESYNC_STATE_DETECTFRAME;
     _q->preamble_counter= 0;
     _q->symbol_counter  = 0;
+    _q->start_counter   = 0;
+    _q->end_counter     = 0;
     
     // reset frame statistics
     _q->framesyncstats.evm = 0.0f;
@@ -430,6 +434,9 @@ void flexframesync_execute(flexframesync   _q,
 void flexframesync_execute_seekpn(flexframesync _q,
                                   float complex _x)
 {
+    // update packet start counter
+    _q->start_counter++;
+
     // push through pre-demod synchronizer
     float complex * v = qdetector_cccf_execute(_q->detector, _x);
 
@@ -447,6 +454,9 @@ void flexframesync_execute_seekpn(flexframesync _q,
     printf("***** frame detected! tau-hat:%8.4f, dphi-hat:%8.4f, gamma:%8.2f dB\n",
             _q->tau_hat, _q->dphi_hat, 20*log10f(_q->gamma_hat));
 #endif
+
+    // update packet end counter
+    _q->end_counter = _q->start_counter;
 
     // set appropriate filterbank index
     if (_q->tau_hat > 0) {
@@ -530,6 +540,9 @@ int flexframesync_step(flexframesync   _q,
 void flexframesync_execute_rxpreamble(flexframesync _q,
                                       float complex _x)
 {
+    // update packet end counter
+    _q->end_counter++;
+
     // step synchronizer
     float complex mf_out = 0.0f;
     int sample_available = flexframesync_step(_q, _x, &mf_out);
@@ -570,6 +583,9 @@ void flexframesync_execute_rxpreamble(flexframesync _q,
 void flexframesync_execute_rxheader(flexframesync _q,
                                     float complex _x)
 {
+    // update packet end counter
+    _q->end_counter++;
+
     // step synchronizer
     float complex mf_out = 0.0f;
     int sample_available = flexframesync_step(_q, _x, &mf_out);
@@ -609,6 +625,8 @@ void flexframesync_execute_rxheader(flexframesync _q,
                 _q->framesyncstats.check         = LIQUID_CRC_UNKNOWN;
                 _q->framesyncstats.fec0          = LIQUID_FEC_UNKNOWN;
                 _q->framesyncstats.fec1          = LIQUID_FEC_UNKNOWN;
+                _q->framesyncstats.start_counter = _q->start_counter;
+                _q->framesyncstats.end_counter   = _q->end_counter;
 
                 // invoke callback method
                 _q->callback(_q->header_dec,
@@ -745,6 +763,9 @@ void flexframesync_decode_header(flexframesync _q)
 void flexframesync_execute_rxpayload(flexframesync _q,
                                      float complex _x)
 {
+    // update packet end counter
+    _q->end_counter++;
+
     // step synchronizer
     float complex mf_out = 0.0f;
     int sample_available = flexframesync_step(_q, _x, &mf_out);
@@ -801,6 +822,8 @@ void flexframesync_execute_rxpayload(flexframesync _q,
                 _q->framesyncstats.check         = qpacketmodem_get_crc(_q->payload_decoder);
                 _q->framesyncstats.fec0          = qpacketmodem_get_fec0(_q->payload_decoder);
                 _q->framesyncstats.fec1          = qpacketmodem_get_fec1(_q->payload_decoder);
+                _q->framesyncstats.start_counter = _q->start_counter;
+                _q->framesyncstats.end_counter   = _q->end_counter;
 
                 // invoke callback method
                 _q->callback(_q->header_dec,

@@ -4313,6 +4313,9 @@ typedef struct {
     unsigned int check;         // data validity check (crc, checksum)
     unsigned int fec0;          // forward error-correction (inner)
     unsigned int fec1;          // forward error-correction (outer)
+
+    unsigned int start_counter; // counter: number of samples before start of frame
+    unsigned int end_counter;   // counter: number of samples through end of frame
 } framesyncstats_s;
 
 // external framesyncstats default object
