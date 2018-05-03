@@ -38,6 +38,9 @@
 
 #define OFDMFRAMESYNC_ENABLE_SQUELCH    0
 
+// Number of payload symbols we save
+#define NPAYLOADSYMS 8192
+
 struct ofdmframesync_s {
     unsigned int M;         // number of subcarriers
     unsigned int M2;        // number of subcarriers (divided by 2)
@@ -88,6 +91,10 @@ struct ofdmframesync_s {
     // Frame offset
     unsigned int start_counter; // counter: num of samples before start of frame
     unsigned int end_counter;   // counter: number of samples through end of frame
+    
+    // Frame symbols
+    unsigned int payload_counter;
+    float complex payload_sym[NPAYLOADSYMS];
 
     // synchronizer objects
     nco_crcf nco_rx;        // numerically-controlled oscillator
@@ -353,6 +360,9 @@ void ofdmframesync_reset(ofdmframesync _q)
     // reset frame offset
     _q->start_counter = 0;
     _q->end_counter = 0;
+    
+    // reset frame offsetpayload symbol counter
+    _q->payload_counter = 0;
 }
 
 void ofdmframesync_execute(ofdmframesync _q,
@@ -422,6 +432,16 @@ unsigned int ofdmframesync_get_start_counter(ofdmframesync _q)
 unsigned int ofdmframesync_get_end_counter(ofdmframesync _q)
 {
     return _q->end_counter;
+}
+
+unsigned int ofdmframesync_get_payload_counter(ofdmframesync _q)
+{
+    return _q->payload_counter;
+}
+
+float complex* ofdmframesync_get_payload_sym(ofdmframesync _q)
+{
+    return _q->payload_sym;
 }
 
 //
@@ -758,6 +778,14 @@ void ofdmframesync_execute_rxsymbols(ofdmframesync _q)
 
         // recover symbol in internal _q->X buffer
         ofdmframesync_rxsymbol(_q);
+        
+        unsigned int i;
+        for (i=0; i<_q->M; i++) {
+            if (_q->p[i] == OFDMFRAME_SCTYPE_DATA) {
+                if (_q->payload_counter < NPAYLOADSYMS)
+                    _q->payload_sym[_q->payload_counter++] =_q->X[i];
+            }
+        }
 
 #if DEBUG_OFDMFRAMESYNC
         if (_q->debug_enabled) {

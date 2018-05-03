@@ -5025,6 +5025,8 @@ float ofdmframesync_get_rssi(ofdmframesync _q); // received signal strength indi
 float ofdmframesync_get_cfo(ofdmframesync _q);  // carrier offset estimate
 unsigned int ofdmframesync_get_start_counter(ofdmframesync _q);  // sample offset to start of packet
 unsigned int ofdmframesync_get_end_counter(ofdmframesync _q);  // sample offset to end of packet
+unsigned int ofdmframesync_get_payload_counter(ofdmframesync _q);  // number of payload symbols saved
+liquid_float_complex* ofdmframesync_get_payload_sym(ofdmframesync _q);  // saved payload symbols
 
 // debugging
 void ofdmframesync_debug_enable(ofdmframesync _q);
