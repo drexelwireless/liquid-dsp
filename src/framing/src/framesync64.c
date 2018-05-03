@@ -617,10 +617,7 @@ void framesync64_execute_rxpayload(framesync64   _q,
                              _q->payload_dec_len,
                              _q->payload_valid,
                              _q->framestats,
-                             _q->userdata,
-                             (liquid_float_complex*)NULL,
-                             (liquid_float_complex*)NULL,
-                             0);
+                             _q->userdata);
             }
 
             // reset frame synchronizer

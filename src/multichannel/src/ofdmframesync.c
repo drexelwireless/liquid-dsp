@@ -400,21 +400,6 @@ float ofdmframesync_get_rssi(ofdmframesync _q)
     return -10.0f*log10(_q->g0);
 }
 
-liquid_float_complex* ofdmframesync_get_channel(ofdmframesync _q)
-{
-    return _q->G;
-}
-
-liquid_float_complex* ofdmframesync_get_channel_estimate(ofdmframesync _q)
-{
-    return _q->G_hat;
-}
-
-unsigned int ofdmframesync_get_num_subcarriers(ofdmframesync _q)
-{
-    return _q->M;
-}
-
 // get receiver carrier frequency offset estimate
 float ofdmframesync_get_cfo(ofdmframesync _q)
 {

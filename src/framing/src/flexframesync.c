@@ -669,10 +669,7 @@ void flexframesync_execute_rxheader(flexframesync _q,
                              0,
                              0,
                              _q->framestats,
-                             _q->userdata,
-                             (liquid_float_complex*)NULL,
-                             (liquid_float_complex*)NULL,
-                             0);
+                             _q->userdata);
             }
             
             if (!_q->header_valid) {
@@ -757,10 +754,7 @@ void flexframesync_execute_rxpayload(flexframesync _q,
                              _q->payload_dec_len,
                              _q->payload_valid,
                              _q->framestats,
-                             _q->userdata,
-                             (liquid_float_complex*)NULL,
-                             (liquid_float_complex*)NULL,
-                             0);
+                             _q->userdata);
             }
 
             // reset frame synchronizer

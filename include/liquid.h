@@ -3202,10 +3202,7 @@ typedef int (*framesync_callback)(unsigned char *  _header,
                                   unsigned int     _payload_len,
                                   int              _payload_valid,
                                   framesyncstats_s _stats,
-                                  void *           _userdata,
-                                  liquid_float_complex* G,
-                                  liquid_float_complex* G_hat,
-                                  unsigned int M);
+                                  void *           _userdata);
 
 // framesync csma callback functions invoked when signal levels is high or low
 //  _userdata       :   user-defined data pointer
@@ -5026,9 +5023,6 @@ void ofdmframesync_execute(ofdmframesync _q,
 // query methods
 float ofdmframesync_get_rssi(ofdmframesync _q); // received signal strength indication
 float ofdmframesync_get_cfo(ofdmframesync _q);  // carrier offset estimate
-liquid_float_complex* ofdmframesync_get_channel(ofdmframesync _q);
-liquid_float_complex* ofdmframesync_get_channel_estimate(ofdmframesync _q);
-unsigned int ofdmframesync_get_num_subcarriers(ofdmframesync _q);
 
 // debugging
 void ofdmframesync_debug_enable(ofdmframesync _q);
