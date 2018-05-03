@@ -76,6 +76,9 @@ void flexframesync_decode_header(flexframesync _q);
 // decode payload
 void flexframesync_decode_payload(flexframesync _q);
 
+// Number of payload symbols we save
+#define NPAYLOADSYMS 8192
+
 // flexframesync object structure
 struct flexframesync_s {
     // callback
@@ -133,7 +136,7 @@ struct flexframesync_s {
     packetizer p_payload;           // payload packetizer
     int payload_valid;              // did payload pass crc?
     
-    float complex payload_sym[256]; // callback payload symbols (modem input)
+    float complex payload_sym[NPAYLOADSYMS]; // callback payload symbols (modem input)
     
     // status variables
     enum {
@@ -708,8 +711,8 @@ void flexframesync_execute_rxpayload(flexframesync _q,
 
         // push through fine-tuned nco
         nco_crcf_mix_down(_q->nco_fine, mf_out, &mf_out);
-        // save payload symbols for callback (up to 256 values)
-        if (_q->payload_counter < 256)
+        // save payload symbols for callback (up to NPAYLOADSYMS values)
+        if (_q->payload_counter < NPAYLOADSYMS)
             _q->payload_sym[_q->payload_counter] = mf_out;
         
         // demodulate
@@ -737,7 +740,7 @@ void flexframesync_execute_rxpayload(flexframesync _q,
                 _q->framestats.cfo           = nco_crcf_get_frequency(_q->nco_coarse) +
                                                nco_crcf_get_frequency(_q->nco_fine) / 2.0f; //(float)(_q->k);
                 _q->framestats.framesyms     = _q->payload_sym;
-                _q->framestats.num_framesyms = _q->payload_mod_len > 256 ? 256 : _q->payload_mod_len;
+                _q->framestats.num_framesyms = _q->payload_mod_len > NPAYLOADSYMS ? NPAYLOADSYMS : _q->payload_mod_len;
                 _q->framestats.mod_scheme    = _q->ms_payload;
                 _q->framestats.mod_bps       = _q->bps_payload;
                 _q->framestats.check         = _q->check;
@@ -1008,7 +1011,7 @@ void flexframesync_debug_print(flexframesync  _q,
         fprintf(fid,"preamble_rx(%4u) = %12.4e + j*%12.4e;\n", i+1, crealf(rc[i]), cimagf(rc[i]));
 
     // write payload symbols
-    unsigned int num_payload_syms = _q->payload_mod_len > 256 ? 256 : _q->payload_mod_len;
+    unsigned int num_payload_syms = _q->payload_mod_len > NPAYLOADSYMS ? NPAYLOADSYMS : _q->payload_mod_len;
     fprintf(fid,"payload_syms = zeros(1,%u);\n", num_payload_syms);
     rc = _q->payload_sym;
     for (i=0; i<num_payload_syms; i++)
