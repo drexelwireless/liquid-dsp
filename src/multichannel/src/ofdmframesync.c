@@ -89,6 +89,10 @@ struct ofdmframesync_s {
         OFDMFRAMESYNC_STATE_RXSYMBOLS     // receive payload symbols
     } state;
 
+    // Frame offset
+    unsigned int start_counter; // counter: num of samples before start of frame
+    unsigned int end_counter;   // counter: number of samples through end of frame
+
     // synchronizer objects
     nco_crcf nco_rx;        // numerically-controlled oscillator
     msequence ms_pilot;     // pilot sequence generator
@@ -349,6 +353,10 @@ void ofdmframesync_reset(ofdmframesync _q)
 
     // reset state
     _q->state = OFDMFRAMESYNC_STATE_SEEKPLCP;
+
+    // reset frame offset
+    _q->start_counter = 0;
+    _q->end_counter = 0;
 }
 
 int ofdmframesync_is_frame_open(ofdmframesync _q)
@@ -415,6 +423,15 @@ float ofdmframesync_get_cfo(ofdmframesync _q)
     return nco_crcf_get_frequency(_q->nco_rx);
 }
 
+unsigned int ofdmframesync_get_start_counter(ofdmframesync _q)
+{
+    return _q->start_counter;
+}
+
+unsigned int ofdmframesync_get_end_counter(ofdmframesync _q)
+{
+    return _q->end_counter;
+}
 
 //
 // internal methods
@@ -423,6 +440,9 @@ float ofdmframesync_get_cfo(ofdmframesync _q)
 // frame detection
 void ofdmframesync_execute_seekplcp(ofdmframesync _q)
 {
+    // update packet start counter
+    _q->start_counter++;
+
     _q->timer++;
 
     if (_q->timer < _q->M)
@@ -482,6 +502,9 @@ void ofdmframesync_execute_seekplcp(ofdmframesync _q)
         _q->timer += _q->M; // add delay to help ensure good S0 estimate
         _q->state = OFDMFRAMESYNC_STATE_PLCPSHORT0;
 
+        // update packet end counter
+        _q->end_counter = _q->start_counter;
+
 #if DEBUG_OFDMFRAMESYNC_PRINT
         printf("********** frame detected! ************\n");
         printf("    s_hat   :   %12.8f <%12.8f>\n", cabsf(s_hat), cargf(s_hat));
@@ -499,6 +522,9 @@ void ofdmframesync_execute_seekplcp(ofdmframesync _q)
 // frame detection
 void ofdmframesync_execute_S0a(ofdmframesync _q)
 {
+    // update packet end counter
+    _q->end_counter++;
+
     //printf("t : %u\n", _q->timer);
     _q->timer++;
 
@@ -547,6 +573,9 @@ void ofdmframesync_execute_S0a(ofdmframesync _q)
 // frame detection
 void ofdmframesync_execute_S0b(ofdmframesync _q)
 {
+    // update packet end counter
+    _q->end_counter++;
+
     //printf("t = %u\n", _q->timer);
     _q->timer++;
 
@@ -627,6 +656,9 @@ void ofdmframesync_execute_S0b(ofdmframesync _q)
 
 void ofdmframesync_execute_S1(ofdmframesync _q)
 {
+    // update packet end counter
+    _q->end_counter++;
+
     _q->timer--;
 
     if (_q->timer > 0)
@@ -719,6 +751,9 @@ void ofdmframesync_execute_S1(ofdmframesync _q)
 
 void ofdmframesync_execute_rxsymbols(ofdmframesync _q)
 {
+    // update packet end counter
+    _q->end_counter++;
+
     // wait for timeout
     _q->timer--;
 
@@ -742,6 +777,9 @@ void ofdmframesync_execute_rxsymbols(ofdmframesync _q)
             }
         }
 #endif
+        // update packet end counter
+        _q->end_counter++;
+
         // invoke callback
         if (_q->callback != NULL) {
             int retval = _q->callback(_q->X, _q->p, _q->M, _q->userdata);
@@ -994,6 +1032,9 @@ void ofdmframesync_estimate_eqgain_poly(ofdmframesync _q,
 // recover symbol, correcting for gain, pilot phase, etc.
 void ofdmframesync_rxsymbol(ofdmframesync _q)
 {
+    // update packet end counter
+    _q->end_counter++;
+
     // apply gain
     unsigned int i;
     for (i=0; i<_q->M; i++)
