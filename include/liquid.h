@@ -4225,6 +4225,106 @@ void framesync64_set_csma_callbacks(framesync64             _q,
                                     void *                  _csma_userdata);
 #endif
 
+
+//
+// Flexible frame : adjustable payload, mod scheme, etc., but bring
+//                  your own error correction, redundancy check
+//
+
+// frame generator
+typedef struct {
+    unsigned int check;         // data validity check
+    unsigned int fec0;          // forward error-correction scheme (inner)
+    unsigned int fec1;          // forward error-correction scheme (outer)
+    unsigned int mod_scheme;    // modulation scheme
+} origflexframegenprops_s;
+
+void origflexframegenprops_init_default(origflexframegenprops_s * _fgprops);
+
+typedef struct origflexframegen_s * origflexframegen;
+
+// create flexframegen object
+//  _props  :   frame properties (modulation scheme, etc.)
+origflexframegen origflexframegen_create(origflexframegenprops_s * _props);
+
+// destroy flexframegen object
+void origflexframegen_destroy(origflexframegen _q);
+
+// print flexframegen object internals
+void origflexframegen_print(origflexframegen _q);
+
+// reset flexframegen object internals
+void origflexframegen_reset(origflexframegen _q);
+
+// is frame assembled?
+int origflexframegen_is_assembled(origflexframegen _q);
+
+// get frame properties
+void origflexframegen_getprops(origflexframegen _q, origflexframegenprops_s * _props);
+
+// set frame properties
+void origflexframegen_setprops(origflexframegen _q, origflexframegenprops_s * _props);
+
+// get length of assembled frame (samples)
+unsigned int origflexframegen_getframelen(origflexframegen _q);
+
+// assemble a frame from an array of data
+//  _q              :   frame generator object
+//  _header         :   frame header
+//  _payload        :   payload data [size: _payload_len x 1]
+//  _payload_len    :   payload data length
+void origflexframegen_assemble(origflexframegen    _q,
+                               unsigned char * _header,
+                               unsigned char * _payload,
+                               unsigned int    _payload_len);
+
+// write samples of assembled frame, two samples at a time, returning
+// '1' when frame is complete, '0' otherwise
+//  _q              :   frame generator object
+//  _buffer         :   output buffer [size: 2 x 1]
+int origflexframegen_write_samples(origflexframegen           _q,
+                                   liquid_float_complex * _buffer);
+
+// frame synchronizer
+
+typedef struct origflexframesync_s * origflexframesync;
+
+// create flexframesync object
+//  _callback   :   callback function
+//  _userdata   :   user data pointer passed to callback function
+origflexframesync origflexframesync_create(framesync_callback _callback,
+                                           void *             _userdata);
+
+// destroy frame synchronizer
+void origflexframesync_destroy(origflexframesync _q);
+
+// print frame synchronizer internal properties
+void origflexframesync_print(origflexframesync _q);
+
+// reset frame synchronizer internal state
+void origflexframesync_reset(origflexframesync _q);
+
+// push samples through frame synchronizer
+//  _q      :   frame synchronizer object
+//  _x      :   input samples [size: _n x 1]
+//  _n      :   number of input samples
+void origflexframesync_execute(origflexframesync          _q,
+                               liquid_float_complex * _x,
+                               unsigned int           _n);
+
+// enable/disable debugging
+void origflexframesync_debug_enable(origflexframesync _q);
+void origflexframesync_debug_disable(origflexframesync _q);
+void origflexframesync_debug_print(origflexframesync _q,
+                                   const char *  _filename);
+#if 0
+// advanced modes
+void origflexframesync_set_csma_callbacks(origflexframesync _fs,
+                                          framesync_csma_callback _csma_lock,
+                                          framesync_csma_callback _csma_unlock,
+                                          void * _csma_userdata);
+#endif
+    
 //
 // Flexible frame : adjustable payload, mod scheme, etc., but bring
 //                  your own error correction, redundancy check
