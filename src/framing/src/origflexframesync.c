@@ -794,11 +794,9 @@ void origflexframesync_decode_header(origflexframesync _q)
     // unscramble header and run packet decoder
 #if DEMOD_HEADER_SOFT
     // soft demodulation operates on header_mod directly
-    unscramble_data_soft(_q->header_mod, ORIGFLEXFRAME_H_ENC);
     _q->header_valid =
     packetizer_decode_soft(_q->p_header, _q->header_mod, _q->header);
 #else
-    unscramble_data(_q->header_enc, ORIGFLEXFRAME_H_ENC);
     _q->header_valid =
     packetizer_decode(_q->p_header, _q->header_enc, _q->header);
 #endif
@@ -920,9 +918,6 @@ void origflexframesync_decode_payload(origflexframesync _q)
     liquid_repack_bytes(_q->payload_mod, _q->bps_payload, _q->payload_mod_len,
                         _q->payload_enc, 8,               _q->payload_enc_len+8,
                         &num_written);
-
-    // unscramble
-    unscramble_data(_q->payload_enc, _q->payload_enc_len);
     
     // decode payload
     _q->payload_valid = packetizer_decode(_q->p_payload,
