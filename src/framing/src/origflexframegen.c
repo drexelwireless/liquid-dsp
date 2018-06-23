@@ -303,7 +303,6 @@ void origflexframegen_assemble(origflexframegen    _q,
 
     // encode payload
     packetizer_encode(_q->p_payload, _payload, _q->payload_enc);
-    scramble_data(_q->payload_enc, _q->payload_enc_len);
 
     // 
     // pack modem symbols
@@ -431,9 +430,6 @@ void origflexframegen_encode_header(origflexframegen _q)
 
     // run packet encoder
     packetizer_encode(_q->p_header, _q->header, _q->header_enc);
-
-    // scramble encoded header
-    scramble_data(_q->header_enc, ORIGFLEXFRAME_H_ENC);
 
 #if DEBUG_FLEXFRAMEGEN
     // print header (decoded)
