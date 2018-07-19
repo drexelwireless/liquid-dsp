@@ -4616,6 +4616,10 @@ void origflexframegen_setprops(origflexframegen _q, origflexframegenprops_s * _p
 // set length of user-defined portion of header
 void origflexframegen_set_header_len(origflexframegen _q, unsigned int _len);
 
+// set properties for header section
+int origflexframegen_set_header_props(origflexframegen          _q,
+                                      origflexframegenprops_s * _props);
+
 // get length of assembled frame (samples)
 unsigned int origflexframegen_getframelen(origflexframegen _q);
 
@@ -4658,6 +4662,18 @@ void origflexframesync_reset(origflexframesync _q);
 // change length of user-defined region in header
 void origflexframesync_set_header_len(origflexframesync _q,
                                       unsigned int  _len);
+
+// enable or disable soft decoding of header
+void origflexframesync_decode_header_soft(origflexframesync _q,
+                                          int               _soft);
+
+// enable or disable soft decoding of payload
+void origflexframesync_decode_payload_soft(origflexframesync _q,
+                                           int               _soft);
+
+// set properties for header section
+int origflexframesync_set_header_props(origflexframesync         _q,
+                                       origflexframegenprops_s * _props);
 
 // push samples through frame synchronizer
 //  _q      :   frame synchronizer object

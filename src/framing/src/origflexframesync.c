@@ -37,8 +37,6 @@
 #define DEBUG_FILENAME              "origflexframesync_internal_debug.m"
 #define DEBUG_BUFFER_LEN            (1600)
 
-#define DEMOD_HEADER_SOFT           1
-
 // push samples through detection stage
 void origflexframesync_execute_seekpn(origflexframesync _q,
                                       float complex _x);
@@ -75,6 +73,13 @@ void origflexframesync_decode_header(origflexframesync _q);
 
 // decode payload
 void origflexframesync_decode_payload(origflexframesync _q);
+
+static origflexframegenprops_s origflexframesyncprops_header_default = {
+   ORIGFLEXFRAME_H_CRC,
+   ORIGFLEXFRAME_H_FEC0,
+   ORIGFLEXFRAME_H_FEC1,
+   ORIGFLEXFRAME_H_MOD,
+};
 
 // Number of payload symbols we save
 #define NPAYLOADSYMS 8192
@@ -113,6 +118,7 @@ struct origflexframesync_s {
     float complex preamble_rx[64];  // received p/n symbols
     
     // header
+    int header_soft;                // perform soft demod of header
     modem demod_header;             // header BPSK demodulator
     packetizer p_header;            // header packetizer
     unsigned char * header_mod;     // header demodulated symbols
@@ -124,7 +130,10 @@ struct origflexframesync_s {
     unsigned int    header_dec_len; // header length (decoded)
     int header_valid;               // header passed crc?
 
+    origflexframegenprops_s header_props;   // header properties
+
     // payload properties
+    int payload_soft;               // payload performs soft demod
     modulation_scheme ms_payload;   // payload modulation scheme
     unsigned int bps_payload;       // payload modulation depth (bits/symbol)
     modem demod_payload;            // payload demodulator
@@ -216,10 +225,13 @@ origflexframesync origflexframesync_create(framesync_callback _callback,
     q->header = NULL;
     q->header_enc = NULL;
     q->header_mod = NULL;
-    origflexframesync_set_header_len(q, ORIGFLEXFRAME_H_USER_DEFAULT);
+    q->header_user_len = ORIGFLEXFRAME_H_USER_DEFAULT;
+    q->header_soft = 0;
+    origflexframesync_set_header_props(q, NULL);
 
     // frame properties (default values to be overwritten when frame
     // header is received and properly decoded)
+    q->payload_soft    = 0;
     q->ms_payload      = LIQUID_MODEM_QPSK;
     q->bps_payload     = 2;
     q->payload_dec_len = 1;
@@ -334,15 +346,15 @@ void origflexframesync_set_header_len(origflexframesync _q,
     if (_q->demod_header)
         modem_destroy(_q->demod_header);
 
-    _q->demod_header = modem_create(ORIGFLEXFRAME_H_MOD);
+    _q->demod_header = modem_create(_q->header_props.mod_scheme);
 
     if (_q->p_header)
         packetizer_destroy(_q->p_header);
 
     _q->p_header = packetizer_create(_q->header_dec_len,
-                                     ORIGFLEXFRAME_H_CRC,
-                                     ORIGFLEXFRAME_H_FEC0,
-                                     ORIGFLEXFRAME_H_FEC1);
+                                     _q->header_props.check,
+                                     _q->header_props.fec0,
+                                     _q->header_props.fec1);
 
     _q->header_enc_len = packetizer_get_enc_msg_len(_q->p_header);
     _q->header_enc = (unsigned char *) realloc(_q->header_enc, _q->header_enc_len*sizeof(unsigned char));
@@ -356,6 +368,47 @@ void origflexframesync_set_header_len(origflexframesync _q,
 #if DEBUG_FLEXFRAMESYNC
     _q->header_sym = (float complex *) realloc(_q->header_sym, _q->header_mod_len*sizeof(float complex));
 #endif
+}
+
+void origflexframesync_decode_header_soft(origflexframesync _q,
+                                          int           _soft)
+{
+    _q->header_soft = _soft;
+}
+
+void origflexframesync_decode_payload_soft(origflexframesync _q,
+                                           int           _soft)
+{
+    _q->payload_soft = _soft;
+}
+
+int origflexframesync_set_header_props(origflexframesync          _q,
+                                       origflexframegenprops_s * _props)
+{
+    if (_props == NULL) {
+        _props = &origflexframesyncprops_header_default;
+    }
+
+    // validate input
+    if (_props->check == LIQUID_CRC_UNKNOWN || _props->check >= LIQUID_CRC_NUM_SCHEMES) {
+        fprintf(stderr, "error: origflexframesync_set_header_props(), invalid/unsupported CRC scheme\n");
+        exit(1);
+    } else if (_props->fec0 == LIQUID_FEC_UNKNOWN || _props->fec1 == LIQUID_FEC_UNKNOWN) {
+        fprintf(stderr, "error: origflexframesync_set_header_props(), invalid/unsupported FEC scheme\n");
+        exit(1);
+    } else if (_props->mod_scheme == LIQUID_MODEM_UNKNOWN ) {
+        fprintf(stderr, "error: origflexframesync_set_header_props(), invalid/unsupported modulation scheme\n");
+        exit(1);
+    }
+
+    // copy properties to internal structure
+    memmove(&_q->header_props, _props, sizeof(origflexframegenprops_s));
+
+    // reconfigure payload buffers (reallocate as necessary)
+    origflexframesync_set_header_len(_q, _q->header_user_len);
+
+    return 0;
+
 }
 
 // execute frame synchronizer
@@ -667,14 +720,15 @@ void origflexframesync_execute_rxheader(origflexframesync _q,
         
         // demodulate
         unsigned int sym_out = 0;
-#if DEMOD_HEADER_SOFT
-        unsigned char bpsk_soft_bit = 0;
-        modem_demodulate_soft(_q->demod_header, mf_out, &sym_out, &bpsk_soft_bit);
-        _q->header_mod[_q->header_counter] = bpsk_soft_bit;
-#else
-        modem_demodulate(_q->demod_header, mf_out, &sym_out);
-        _q->header_mod[_q->header_counter] = (unsigned char)sym_out;
-#endif
+
+        if (_q->header_soft) {
+            unsigned char soft_bit = 0;
+            modem_demodulate_soft(_q->demod_header, mf_out, &sym_out, &soft_bit);
+            _q->header_mod[_q->header_counter] =soft_bit;
+        } else {
+            modem_demodulate(_q->demod_header, mf_out, &sym_out);
+            _q->header_mod[_q->header_counter] = (unsigned char)sym_out;
+        }
 
         // update phase-locked loop and fine-tuned NCO
         float phase_error = modem_get_demodulator_phase_error(_q->demod_header);
@@ -815,17 +869,16 @@ void origflexframesync_execute_rxpayload(origflexframesync _q,
 // decode header
 void origflexframesync_decode_header(origflexframesync _q)
 {
-#if DEMOD_HEADER_SOFT
-    // soft decoding operates on 'header_mod' array directly;
-    // no need to pack bits
-#else
-    // pack 256 1-bit header symbols into 32 8-bit bytes
-    unsigned int num_written;
-    liquid_pack_bytes(_q->header_mod, FLEXFRAME_H_SYM,
-                      _q->header_enc, FLEXFRAME_H_ENC,
-                      &num_written);
-    assert(num_written==FLEXFRAME_H_ENC);
-#endif
+    if (!_q->header_soft) {
+        // soft decoding operates on 'header_mod' array directly;
+        // no need to pack bits
+        // pack 256 1-bit header symbols into 32 8-bit bytes
+        unsigned int num_written;
+        liquid_pack_bytes(_q->header_mod, _q->header_mod_len,
+                          _q->header_enc, _q->header_enc_len,
+                          &num_written);
+        assert(num_written==_q->header_enc_len);
+    }
 
 #if DEBUG_ORIGFLEXFRAMESYNC_PRINT
     unsigned int i;
@@ -837,14 +890,13 @@ void origflexframesync_decode_header(origflexframesync _q)
 #endif
 
     // unscramble header and run packet decoder
-#if DEMOD_HEADER_SOFT
-    // soft demodulation operates on header_mod directly
-    _q->header_valid =
-    packetizer_decode_soft(_q->p_header, _q->header_mod, _q->header);
-#else
-    _q->header_valid =
-    packetizer_decode(_q->p_header, _q->header_enc, _q->header);
-#endif
+    if (_q->header_soft)
+        // soft demodulation operates on header_mod directly
+        _q->header_valid =
+            packetizer_decode_soft(_q->p_header, _q->header_mod, _q->header);
+    else
+        _q->header_valid =
+            packetizer_decode(_q->p_header, _q->header_enc, _q->header);
 
     // return if header is invalid
     if (!_q->header_valid)
@@ -958,16 +1010,22 @@ void origflexframesync_decode_header(origflexframesync _q)
 // decode payload
 void origflexframesync_decode_payload(origflexframesync _q)
 {
-    // pack (8-bit) bytes from (bps_payload-bit) symbols
-    unsigned int num_written;
-    liquid_repack_bytes(_q->payload_mod, _q->bps_payload, _q->payload_mod_len,
-                        _q->payload_enc, 8,               _q->payload_enc_len+8,
-                        &num_written);
-    
-    // decode payload
-    _q->payload_valid = packetizer_decode(_q->p_payload,
-                                          _q->payload_enc,
-                                          _q->payload_dec);
+    if (_q->payload_soft)
+        _q->payload_valid = packetizer_decode_soft(_q->p_payload,
+                                                   _q->payload_enc,
+                                                   _q->payload_dec);
+    else {
+        // pack (8-bit) bytes from (bps_payload-bit) symbols
+        unsigned int num_written;
+        liquid_repack_bytes(_q->payload_mod, _q->bps_payload, _q->payload_mod_len,
+                            _q->payload_enc, 8,               _q->payload_enc_len+8,
+                            &num_written);
+
+        // decode payload
+        _q->payload_valid = packetizer_decode(_q->p_payload,
+                                              _q->payload_enc,
+                                              _q->payload_dec);
+    }
 }
 
 // enable debugging

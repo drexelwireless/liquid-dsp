@@ -59,12 +59,21 @@ static origflexframegenprops_s origflexframegenprops_default = {
     LIQUID_MODEM_BPSK,  // mod_scheme
 };
 
+static origflexframegenprops_s origflexframegenprops_header_default = {
+   ORIGFLEXFRAME_H_CRC,
+   ORIGFLEXFRAME_H_FEC0,
+   ORIGFLEXFRAME_H_FEC1,
+   ORIGFLEXFRAME_H_MOD,
+};
+
 void origflexframegenprops_init_default(origflexframegenprops_s * _props)
 {
     memmove(_props, &origflexframegenprops_default, sizeof(origflexframegenprops_s));
 }
 
 struct origflexframegen_s {
+    origflexframegenprops_s header_props; // header properties
+
     // BPSK preamble
     float preamble_pn[64];              // p/n sequence
     // post-p/n sequence symbols?
@@ -131,7 +140,7 @@ origflexframegen origflexframegen_create(origflexframegenprops_s * _fgprops)
     q->header = NULL;
     q->header_enc = NULL;
     q->header_mod = NULL;
-    origflexframegen_set_header_len(q, ORIGFLEXFRAME_H_USER_DEFAULT);
+    q->header_user_len = ORIGFLEXFRAME_H_USER_DEFAULT;
 
     // initial memory allocation for payload
     q->payload_dec_len = 1;
@@ -156,6 +165,7 @@ origflexframegen origflexframegen_create(origflexframegenprops_s * _fgprops)
 
     // initialize properties
     origflexframegen_setprops(q, _fgprops);
+    origflexframegen_set_header_props(q, NULL);
 
     // reset
     origflexframegen_reset(q);
@@ -282,15 +292,15 @@ void origflexframegen_set_header_len(origflexframegen _q,
     if (_q->mod_header)
         modem_destroy(_q->mod_header);
     
-    _q->mod_header = modem_create(ORIGFLEXFRAME_H_MOD);
+    _q->mod_header = modem_create(_q->header_props.mod_scheme);
 
     if (_q->p_header)
         packetizer_destroy(_q->p_header);
     
     _q->p_header = packetizer_create(_q->header_dec_len,
-                                     ORIGFLEXFRAME_H_CRC,
-                                     ORIGFLEXFRAME_H_FEC0,
-                                     ORIGFLEXFRAME_H_FEC1);
+                                     _q->header_props.check,
+                                     _q->header_props.fec0,
+                                     _q->header_props.fec1);
 
     _q->header_enc_len = packetizer_get_enc_msg_len(_q->p_header);
     _q->header_enc = (unsigned char *) realloc(_q->header_enc, _q->header_enc_len*sizeof(unsigned char));
@@ -300,6 +310,40 @@ void origflexframegen_set_header_len(origflexframegen _q,
     
     _q->header_mod_len = d.quot + (d.rem ? 1 : 0);
     _q->header_mod = (unsigned char*) realloc(_q->header_mod, _q->header_mod_len*sizeof(unsigned char));
+}
+
+int origflexframegen_set_header_props(origflexframegen          _q,
+                                      origflexframegenprops_s * _props)
+{
+    // if frame is already assembled, give warning
+    if (_q->frame_assembled) {
+        fprintf(stderr, "warning: origflexframegen_set_header_props(), frame is already assembled; must reset() first\n");
+        return -1;
+    }
+
+    if (_props == NULL) {
+        _props = &origflexframegenprops_header_default;
+    }
+
+    // validate input
+    if (_props->check == LIQUID_CRC_UNKNOWN || _props->check >= LIQUID_CRC_NUM_SCHEMES) {
+        fprintf(stderr, "error: origflexframegen_set_header_props(), invalid/unsupported CRC scheme\n");
+        exit(1);
+    } else if (_props->fec0 == LIQUID_FEC_UNKNOWN || _props->fec1 == LIQUID_FEC_UNKNOWN) {
+        fprintf(stderr, "error: origflexframegen_set_header_props(), invalid/unsupported FEC scheme\n");
+        exit(1);
+    } else if (_props->mod_scheme == LIQUID_MODEM_UNKNOWN ) {
+        fprintf(stderr, "error: origflexframegen_set_header_props(), invalid/unsupported modulation scheme\n");
+        exit(1);
+    }
+
+    // copy properties to internal structure
+    memmove(&_q->header_props, _props, sizeof(origflexframegenprops_s));
+
+    // reconfigure payload buffers (reallocate as necessary)
+    origflexframegen_set_header_len(_q, _q->header_user_len);
+
+    return 0;
 }
 
 // get frame length (number of samples)
