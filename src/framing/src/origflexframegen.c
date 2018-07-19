@@ -72,9 +72,13 @@ struct origflexframegen_s {
     // header (BPSK)
     modem mod_header;                   // header BPSK modulator
     packetizer p_header;                // header packetizer
-    unsigned char header[ORIGFLEXFRAME_H_DEC];      // header data (uncoded)
-    unsigned char header_enc[ORIGFLEXFRAME_H_ENC];  // header data (encoded)
-    unsigned char header_sym[ORIGFLEXFRAME_H_SYM];  // header symbols
+    unsigned char * header;             // header data (uncoded)
+    unsigned int    header_user_len;    // header user section length
+    unsigned int    header_dec_len;     // header length (decoded)
+    unsigned char * header_enc;         // header data (encoded)
+    unsigned int    header_enc_len;     // header length (encoded)
+    unsigned char * header_mod;         // header symbols (modem input)
+    unsigned int    header_mod_len;     // header symbol length
 
     // payload
     packetizer p_payload;               // payload packetizer
@@ -112,6 +116,9 @@ origflexframegen origflexframegen_create(origflexframegenprops_s * _fgprops)
 
     unsigned int i;
 
+    // ensure frame is not assembled
+    q->frame_assembled = 0;
+
     // generate pn sequence
     msequence ms = msequence_create(6, 0x005b, 1);
     for (i=0; i<64; i++)
@@ -119,12 +126,12 @@ origflexframegen origflexframegen_create(origflexframegenprops_s * _fgprops)
     msequence_destroy(ms);
 
     // create header objects
-    q->mod_header = modem_create(LIQUID_MODEM_BPSK);
-    q->p_header   = packetizer_create(ORIGFLEXFRAME_H_DEC,
-                                      ORIGFLEXFRAME_H_CRC,
-                                      ORIGFLEXFRAME_H_FEC0,
-                                      ORIGFLEXFRAME_H_FEC1);
-    assert(packetizer_get_enc_msg_len(q->p_header)==ORIGFLEXFRAME_H_ENC);
+    q->mod_header = NULL;
+    q->p_header = NULL;
+    q->header = NULL;
+    q->header_enc = NULL;
+    q->header_mod = NULL;
+    origflexframegen_set_header_len(q, ORIGFLEXFRAME_H_USER_DEFAULT);
 
     // initial memory allocation for payload
     q->payload_dec_len = 1;
@@ -147,8 +154,7 @@ origflexframegen origflexframegen_create(origflexframegenprops_s * _fgprops)
     q->beta = 0.25f;
     q->interp = firinterp_crcf_create_prototype(LIQUID_FIRFILT_ARKAISER,q->k,q->m,q->beta,0);
 
-    // ensure frame is not assembled and initialize properties
-    q->frame_assembled = 0;
+    // initialize properties
     origflexframegen_setprops(q, _fgprops);
 
     // reset
@@ -168,6 +174,9 @@ void origflexframegen_destroy(origflexframegen _q)
     firinterp_crcf_destroy(_q->interp); // pulse-shaping filter
 
     // free buffers/arrays
+    free(_q->header);                   // header data (uncoded)
+    free(_q->header_enc);               // header data (encoded)
+    free(_q->header_mod);               // header symbols (modem input)
     free(_q->payload_enc);              // encoded payload bytes
     free(_q->payload_mod);              // modulated payload symbols
 
@@ -180,7 +189,7 @@ void origflexframegen_print(origflexframegen _q)
 {
     printf("flexframegen:\n");
     printf("    p/n sequence len    :   %u\n",       64);
-    printf("    header len          :   %u\n",      ORIGFLEXFRAME_H_SYM);
+    printf("    header len          :   %u\n",      _q->header_mod_len);
     printf("    payload len, uncoded:   %u bytes\n", _q->payload_dec_len);
     printf("    payload crc         :   %s\n", crc_scheme_str[_q->props.check][1]);
     printf("    fec (inner)         :   %s\n", fec_scheme_str[_q->props.fec0][1]);
@@ -257,6 +266,42 @@ void origflexframegen_setprops(origflexframegen          _q,
     origflexframegen_reconfigure(_q);
 }
 
+void origflexframegen_set_header_len(origflexframegen _q,
+                                     unsigned int _len)
+{
+    // if frame is already assembled, give warning
+    if (_q->frame_assembled) {
+        fprintf(stderr, "warning: origflexframegen_set_header_len(), frame is already assembled; must reset() first\n");
+        return;
+    }
+
+    _q->header_user_len = _len;
+    _q->header_dec_len = ORIGFLEXFRAME_H_DEC + _q->header_user_len;
+    _q->header = (unsigned char *) realloc(_q->header, _q->header_dec_len*sizeof(unsigned char));
+
+    if (_q->mod_header)
+        modem_destroy(_q->mod_header);
+    
+    _q->mod_header = modem_create(ORIGFLEXFRAME_H_MOD);
+
+    if (_q->p_header)
+        packetizer_destroy(_q->p_header);
+    
+    _q->p_header = packetizer_create(_q->header_dec_len,
+                                     ORIGFLEXFRAME_H_CRC,
+                                     ORIGFLEXFRAME_H_FEC0,
+                                     ORIGFLEXFRAME_H_FEC1);
+
+    _q->header_enc_len = packetizer_get_enc_msg_len(_q->p_header);
+    _q->header_enc = (unsigned char *) realloc(_q->header_enc, _q->header_enc_len*sizeof(unsigned char));
+
+    unsigned int bps = modem_get_bps(_q->mod_header);
+    div_t d = div(8*_q->header_enc_len, bps);
+    
+    _q->header_mod_len = d.quot + (d.rem ? 1 : 0);
+    _q->header_mod = (unsigned char*) realloc(_q->header_mod, _q->header_mod_len*sizeof(unsigned char));
+}
+
 // get frame length (number of samples)
 unsigned int origflexframegen_getframelen(origflexframegen _q)
 {
@@ -266,7 +311,7 @@ unsigned int origflexframegen_getframelen(origflexframegen _q)
     }
     unsigned int num_frame_symbols =
             64 +                    // preamble p/n sequence length
-            ORIGFLEXFRAME_H_SYM +       // header symbols
+            _q->header_mod_len +    // header symbols
             _q->payload_mod_len +   // number of modulation symbols
             2*_q->m;                // number of tail symbols
 
@@ -293,7 +338,7 @@ void origflexframegen_assemble(origflexframegen    _q,
     _q->frame_assembled = 1;
 
     // copy user-defined header data
-    memmove(_q->header, _header, ORIGFLEXFRAME_H_USER*sizeof(unsigned char));
+    memmove(_q->header, _header, _q->header_user_len*sizeof(unsigned char));
 
     // encode full header
     origflexframegen_encode_header(_q);
@@ -408,7 +453,7 @@ void origflexframegen_reconfigure(origflexframegen _q)
 void origflexframegen_encode_header(origflexframegen _q)
 {
     // first several bytes of header are user-defined
-    unsigned int n = ORIGFLEXFRAME_H_USER;
+    unsigned int n = _q->header_user_len;
 
     // add ORIGFLEXFRAME_VERSION
     _q->header[n+0] = ORIGFLEXFRAME_VERSION;
@@ -447,22 +492,15 @@ void origflexframegen_encode_header(origflexframegen _q)
 #endif
 }
 
-// modulate header into BPSK symbols
+// modulate header into symbols
 void origflexframegen_modulate_header(origflexframegen _q)
 {
-    unsigned int i;
-
-    // unpack header symbols
-    for (i=0; i<ORIGFLEXFRAME_H_ENC; i++) {
-        _q->header_sym[8*i+0] = (_q->header_enc[i] >> 7) & 0x01;
-        _q->header_sym[8*i+1] = (_q->header_enc[i] >> 6) & 0x01;
-        _q->header_sym[8*i+2] = (_q->header_enc[i] >> 5) & 0x01;
-        _q->header_sym[8*i+3] = (_q->header_enc[i] >> 4) & 0x01;
-        _q->header_sym[8*i+4] = (_q->header_enc[i] >> 3) & 0x01;
-        _q->header_sym[8*i+5] = (_q->header_enc[i] >> 2) & 0x01;
-        _q->header_sym[8*i+6] = (_q->header_enc[i] >> 1) & 0x01;
-        _q->header_sym[8*i+7] = (_q->header_enc[i]     ) & 0x01;
-    }
+    // repack 8-bit payload bytes into 'bps'-bit payload symbols
+    unsigned int bps = modem_get_bps(_q->mod_header);
+    unsigned int num_written;
+    liquid_repack_bytes(_q->header_enc,  8,  _q->header_enc_len,
+                        _q->header_mod, bps, _q->header_mod_len,
+                        &num_written);
 }
 
 // modulate payload
@@ -501,7 +539,7 @@ void origflexframegen_write_header(origflexframegen    _q,
 #endif
 
     float complex s;
-    modem_modulate(_q->mod_header, _q->header_sym[_q->symbol_counter], &s);
+    modem_modulate(_q->mod_header, _q->header_mod[_q->symbol_counter], &s);
 
     // interpolate symbol
     firinterp_crcf_execute(_q->interp, s, _buffer);
@@ -510,7 +548,7 @@ void origflexframegen_write_header(origflexframegen    _q,
     _q->symbol_counter++;
 
     // check state
-    if (_q->symbol_counter == ORIGFLEXFRAME_H_SYM) {
+    if (_q->symbol_counter == _q->header_mod_len) {
         _q->symbol_counter = 0;
         _q->state = STATE_PAYLOAD;
     }

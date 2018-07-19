@@ -4613,6 +4613,9 @@ void origflexframegen_getprops(origflexframegen _q, origflexframegenprops_s * _p
 // set frame properties
 void origflexframegen_setprops(origflexframegen _q, origflexframegenprops_s * _props);
 
+// set length of user-defined portion of header
+void origflexframegen_set_header_len(origflexframegen _q, unsigned int _len);
+
 // get length of assembled frame (samples)
 unsigned int origflexframegen_getframelen(origflexframegen _q);
 
@@ -4651,6 +4654,10 @@ void origflexframesync_print(origflexframesync _q);
 
 // reset frame synchronizer internal state
 void origflexframesync_reset(origflexframesync _q);
+
+// change length of user-defined region in header
+void origflexframesync_set_header_len(origflexframesync _q,
+                                      unsigned int  _len);
 
 // push samples through frame synchronizer
 //  _q      :   frame synchronizer object

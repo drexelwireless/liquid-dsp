@@ -1088,19 +1088,12 @@ void bpacketsync_reconfig(bpacketsync _q);
 #define ORIGFLEXFRAME_VERSION   (100)
 
 // header description
-// NOTE: The flexframe header can be improved with crc24, secded7264, v29
-//       which also generates a 54-byte frame. Improves header decoding
-//       by about 1 dB (99% probability of decoding with SNR = -1 dB);
-//       however this requires that the 'libfec' libraries are installed.
-#define ORIGFLEXFRAME_H_USER    (14)                    // user-defined array
-#define ORIGFLEXFRAME_H_DEC     (ORIGFLEXFRAME_H_USER+6)    // decoded length
-#define ORIGFLEXFRAME_H_CRC     (LIQUID_CRC_32)         // header CRC
-#define ORIGFLEXFRAME_H_FEC0    (LIQUID_FEC_SECDED7264) // header FEC (inner)
-#define ORIGFLEXFRAME_H_FEC1    (LIQUID_FEC_HAMMING84)  // header FEC (outer)
-#define ORIGFLEXFRAME_H_ENC     (54)                    // encoded length
-//#define ORIGFLEXFRAME_H_MOD     (LIQUID_MODEM_BPSK)   // modulation scheme
-//#define ORIGFLEXFRAME_H_BPS     (1)                   // modulation depth
-#define ORIGFLEXFRAME_H_SYM     (432)                   // number of symbols
+#define ORIGFLEXFRAME_H_USER_DEFAULT (14)                    // user-defined array
+#define ORIGFLEXFRAME_H_DEC          (6)                     // decoded length
+#define ORIGFLEXFRAME_H_CRC          (LIQUID_CRC_32)         // header CRC
+#define ORIGFLEXFRAME_H_FEC0         (LIQUID_FEC_SECDED7264) // header FEC (inner)
+#define ORIGFLEXFRAME_H_FEC1         (LIQUID_FEC_HAMMING84)  // header FEC (outer)
+#define ORIGFLEXFRAME_H_MOD          (LIQUID_MODEM_BPSK)     // modulation scheme
 
 
 // 

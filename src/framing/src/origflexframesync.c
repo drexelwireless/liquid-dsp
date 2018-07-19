@@ -115,9 +115,13 @@ struct origflexframesync_s {
     // header
     modem demod_header;             // header BPSK demodulator
     packetizer p_header;            // header packetizer
-    unsigned char header_mod[ORIGFLEXFRAME_H_SYM];  // header demodulated symbols
-    unsigned char header_enc[ORIGFLEXFRAME_H_ENC];  // header data (encoded)
-    unsigned char header[ORIGFLEXFRAME_H_DEC];      // header data (decoded)
+    unsigned char * header_mod;     // header demodulated symbols
+    unsigned int    header_mod_len; // header symbol length
+    unsigned char * header_enc;     // header data (encoded)
+    unsigned int    header_enc_len; // header length (encoded)
+    unsigned char * header;         // header data (decoded)
+    unsigned int    header_user_len;// header user section length
+    unsigned int    header_dec_len; // header length (decoded)
     int header_valid;               // header passed crc?
 
     // payload properties
@@ -155,7 +159,7 @@ struct origflexframesync_s {
     int debug_enabled;              // debugging enabled?
     int debug_objects_created;      // debugging objects created?
     windowcf debug_x;               // debug: raw input samples
-    float complex header_sym[ORIGFLEXFRAME_H_SYM];  // header symbols
+    float complex * header_sym;     // header symbols
 #endif
 };
 
@@ -207,12 +211,12 @@ origflexframesync origflexframesync_create(framesync_callback _callback,
     nco_crcf_pll_set_bandwidth(q->nco_fine, 0.05f);
     
     // create header objects
-    q->demod_header = modem_create(LIQUID_MODEM_BPSK);
-    q->p_header   = packetizer_create(ORIGFLEXFRAME_H_DEC,
-                                      ORIGFLEXFRAME_H_CRC,
-                                      ORIGFLEXFRAME_H_FEC0,
-                                      ORIGFLEXFRAME_H_FEC1);
-    assert(packetizer_get_enc_msg_len(q->p_header)==ORIGFLEXFRAME_H_ENC);
+    q->demod_header = NULL;
+    q->p_header = NULL;
+    q->header = NULL;
+    q->header_enc = NULL;
+    q->header_mod = NULL;
+    origflexframesync_set_header_len(q, ORIGFLEXFRAME_H_USER_DEFAULT);
 
     // frame properties (default values to be overwritten when frame
     // header is received and properly decoded)
@@ -269,6 +273,12 @@ void origflexframesync_destroy(origflexframesync _q)
     packetizer_destroy(_q->p_payload);          // payload decoder
 
     // free buffers and arrays
+    free(_q->header_mod);
+    free(_q->header_enc);
+    free(_q->header);
+#if DEBUG_FLEXFRAMESYNC
+    free(_q->header_sym);
+#endif
     free(_q->payload_mod);      // 
     free(_q->payload_enc);      // 
     free(_q->payload_dec);      // 
@@ -311,6 +321,41 @@ void origflexframesync_reset(origflexframesync _q)
     
     // reset frame statistics
     _q->framestats.evm = 0.0f;
+}
+
+// change length of user-defined region in header
+void origflexframesync_set_header_len(origflexframesync _q,
+                                      unsigned int  _len)
+{
+    _q->header_user_len = _len;
+    _q->header_dec_len  = ORIGFLEXFRAME_H_DEC + _q->header_user_len;
+    _q->header          = (unsigned char *) realloc(_q->header, _q->header_dec_len*sizeof(unsigned char));
+
+    if (_q->demod_header)
+        modem_destroy(_q->demod_header);
+
+    _q->demod_header = modem_create(ORIGFLEXFRAME_H_MOD);
+
+    if (_q->p_header)
+        packetizer_destroy(_q->p_header);
+
+    _q->p_header = packetizer_create(_q->header_dec_len,
+                                     ORIGFLEXFRAME_H_CRC,
+                                     ORIGFLEXFRAME_H_FEC0,
+                                     ORIGFLEXFRAME_H_FEC1);
+
+    _q->header_enc_len = packetizer_get_enc_msg_len(_q->p_header);
+    _q->header_enc = (unsigned char *) realloc(_q->header_enc, _q->header_enc_len*sizeof(unsigned char));
+
+    unsigned int bps = modem_get_bps(_q->demod_header);
+    div_t d = div(8*_q->header_enc_len, bps);
+    
+    _q->header_mod_len = d.quot + (d.rem ? 1 : 0);
+    _q->header_mod = (unsigned char*) realloc(_q->header_mod, _q->header_mod_len*sizeof(unsigned char));
+
+#if DEBUG_FLEXFRAMESYNC
+    _q->header_sym = (float complex *) realloc(_q->header_sym, _q->header_mod_len*sizeof(float complex));
+#endif
 }
 
 // execute frame synchronizer
@@ -643,14 +688,14 @@ void origflexframesync_execute_rxheader(origflexframesync _q,
         // increment counter
         _q->header_counter++;
 
-        if (_q->header_counter == ORIGFLEXFRAME_H_SYM) {
+        if (_q->header_counter == _q->header_mod_len) {
             // decode header and invoke callback
             origflexframesync_decode_header(_q);
             
             // invoke callback if header is invalid
             if (!_q->header_valid && _q->callback != NULL) {
                 // set framestats internals
-                _q->framestats.evm           = 20*log10f(sqrtf(_q->framestats.evm / ORIGFLEXFRAME_H_SYM));
+                _q->framestats.evm           = 20*log10f(sqrtf(_q->framestats.evm / _q->header_mod_len));
                 _q->framestats.rssi          = 20*log10f(_q->gamma_hat);
                 _q->framestats.cfo           = nco_crcf_get_frequency(_q->nco_coarse) +
                                                nco_crcf_get_frequency(_q->nco_fine) / 2.0f; //(float)(_q->k);
@@ -735,7 +780,7 @@ void origflexframesync_execute_rxpayload(origflexframesync _q,
             // invoke callback
             if (_q->callback != NULL) {
                 // set framestats internals
-                _q->framestats.evm           = 20*log10f(sqrtf(_q->framestats.evm / ORIGFLEXFRAME_H_SYM));
+                _q->framestats.evm           = 20*log10f(sqrtf(_q->framestats.evm / _q->header_mod_len));
                 _q->framestats.rssi          = 20*log10f(_q->gamma_hat);
                 _q->framestats.cfo           = nco_crcf_get_frequency(_q->nco_coarse) +
                                                nco_crcf_get_frequency(_q->nco_fine) / 2.0f; //(float)(_q->k);
@@ -806,7 +851,7 @@ void origflexframesync_decode_header(origflexframesync _q)
         return;
 
     // first several bytes of header are user-defined
-    unsigned int n = ORIGFLEXFRAME_H_USER;
+    unsigned int n = _q->header_user_len;
 
     // first byte is for expansion/version validation
     if (_q->header[n+0] != ORIGFLEXFRAME_VERSION) {
