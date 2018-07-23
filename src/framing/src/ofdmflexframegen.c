@@ -558,9 +558,6 @@ void ofdmflexframegen_encode_header(ofdmflexframegen _q)
     // run packet encoder
     packetizer_encode(_q->p_header, _q->header, _q->header_enc);
 
-    // scramble header
-    scramble_data(_q->header_enc, _q->header_enc_len);
-
 #if 0
     // print header (decoded)
     unsigned int i;

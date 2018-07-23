@@ -528,9 +528,6 @@ void ofdmflexframesync_decode_header(ofdmflexframesync _q)
     unsigned int bps = modulation_types[_q->header_props.mod_scheme].bps;
         
     if (_q->header_soft) {
-        // unscramble header using soft bits
-        unscramble_data_soft(_q->header_mod, _q->header_mod_len/bps);
-
         // run packet decoder
         _q->header_valid = packetizer_decode_soft(_q->p_header, _q->header_mod, _q->header);
     } else {
@@ -540,9 +537,6 @@ void ofdmflexframesync_decode_header(ofdmflexframesync _q)
                             _q->header_enc, 8,   _q->header_enc_len,
                             &num_written);
         assert(num_written==_q->header_enc_len);
-
-        // unscramble header
-        unscramble_data(_q->header_enc, _q->header_enc_len);
 
         // run packet decoder
         _q->header_valid = packetizer_decode(_q->p_header, _q->header_enc, _q->header);
