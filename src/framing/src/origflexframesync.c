@@ -122,7 +122,8 @@ struct origflexframesync_s {
     modem demod_header;             // header BPSK demodulator
     packetizer p_header;            // header packetizer
     unsigned char * header_mod;     // header demodulated symbols
-    unsigned int    header_mod_len; // header symbol length
+    unsigned int    header_mod_len; // header demodulated symbols length
+    unsigned int    header_sym_len; // header symbol length
     unsigned char * header_enc;     // header data (encoded)
     unsigned int    header_enc_len; // header length (encoded)
     unsigned char * header;         // header data (decoded)
@@ -140,7 +141,8 @@ struct origflexframesync_s {
     crc_scheme check;               // payload validity check
     fec_scheme fec0;                // payload FEC (inner)
     fec_scheme fec1;                // payload FEC (outer)
-    unsigned int payload_mod_len;   // length of encoded payload
+    unsigned int payload_sym_len;   // length of payload symbols
+    unsigned int payload_mod_len;   // length of modulated payload
     unsigned int payload_enc_len;   // length of encoded payload
     unsigned int payload_dec_len;   // payload length (num un-encoded bytes)
     unsigned char * payload_mod;    // payload symbols (modem output)
@@ -355,18 +357,24 @@ void origflexframesync_set_header_len(origflexframesync _q,
                                      _q->header_props.check,
                                      _q->header_props.fec0,
                                      _q->header_props.fec1);
-
-    _q->header_enc_len = packetizer_get_enc_msg_len(_q->p_header);
-    _q->header_enc = (unsigned char *) realloc(_q->header_enc, _q->header_enc_len*sizeof(unsigned char));
-
-    unsigned int bps = modem_get_bps(_q->demod_header);
-    div_t d = div(8*_q->header_enc_len, bps);
     
-    _q->header_mod_len = d.quot + (d.rem ? 1 : 0);
+    unsigned int bps = modulation_types[_q->header_props.mod_scheme].bps;
+        
+    _q->header_enc_len = packetizer_get_enc_msg_len(_q->p_header);
+    div_t bps_d = div(_q->header_enc_len*8, bps);
+    _q->header_sym_len = bps_d.quot + (bps_d.rem ? 1 : 0);
+        
+    if (_q->header_soft) {
+        _q->header_mod_len = bps*_q->header_sym_len;
+    } else {
+        _q->header_mod_len = _q->header_sym_len;
+    }
+
+    _q->header_enc = (unsigned char *) realloc(_q->header_enc, _q->header_enc_len*sizeof(unsigned char));
     _q->header_mod = (unsigned char*) realloc(_q->header_mod, _q->header_mod_len*sizeof(unsigned char));
 
 #if DEBUG_FLEXFRAMESYNC
-    _q->header_sym = (float complex *) realloc(_q->header_sym, _q->header_mod_len*sizeof(float complex));
+    _q->header_sym = (float complex *) realloc(_q->header_sym, _q->header_sym_len*sizeof(float complex));
 #endif
 }
 
@@ -374,6 +382,7 @@ void origflexframesync_decode_header_soft(origflexframesync _q,
                                           int           _soft)
 {
     _q->header_soft = _soft;
+    origflexframesync_set_header_len(_q, _q->header_user_len);
 }
 
 void origflexframesync_decode_payload_soft(origflexframesync _q,
@@ -719,15 +728,14 @@ void origflexframesync_execute_rxheader(origflexframesync _q,
 #endif
         
         // demodulate
-        unsigned int sym_out = 0;
-
+        unsigned int sym;
+        
         if (_q->header_soft) {
-            unsigned char soft_bit = 0;
-            modem_demodulate_soft(_q->demod_header, mf_out, &sym_out, &soft_bit);
-            _q->header_mod[_q->header_counter] =soft_bit;
+            unsigned int bps = modulation_types[_q->header_props.mod_scheme].bps;
+            modem_demodulate_soft(_q->demod_header, mf_out, &sym, &_q->header_mod[bps*_q->header_counter]);
         } else {
-            modem_demodulate(_q->demod_header, mf_out, &sym_out);
-            _q->header_mod[_q->header_counter] = (unsigned char)sym_out;
+            modem_demodulate(_q->demod_header, mf_out, &sym);
+            _q->header_mod[_q->header_counter] = sym;
         }
 
         // update phase-locked loop and fine-tuned NCO
@@ -742,7 +750,7 @@ void origflexframesync_execute_rxheader(origflexframesync _q,
         // increment counter
         _q->header_counter++;
 
-        if (_q->header_counter == _q->header_mod_len) {
+        if (_q->header_counter == _q->header_sym_len) {
             // decode header and invoke callback
             origflexframesync_decode_header(_q);
             
@@ -815,9 +823,15 @@ void origflexframesync_execute_rxpayload(origflexframesync _q,
             _q->payload_sym[_q->payload_counter] = mf_out;
         
         // demodulate
-        unsigned int sym_out = 0;
-        modem_demodulate(_q->demod_payload, mf_out, &sym_out);
-        _q->payload_mod[_q->payload_counter] = (unsigned char)sym_out;
+        unsigned int sym;
+        
+        if (_q->payload_soft) {
+            unsigned int bps = _q->bps_payload;
+            modem_demodulate_soft(_q->demod_payload, mf_out, &sym, &_q->payload_mod[bps*_q->payload_counter]);
+        } else {
+            modem_demodulate(_q->demod_payload, mf_out, &sym);
+            _q->payload_mod[_q->payload_counter] = sym;
+        }
 
         // update phase-locked loop and fine-tuned NCO
         float phase_error = modem_get_demodulator_phase_error(_q->demod_payload);
@@ -827,7 +841,7 @@ void origflexframesync_execute_rxpayload(origflexframesync _q,
         // increment counter
         _q->payload_counter++;
 
-        if (_q->payload_counter == _q->payload_mod_len) {
+        if (_q->payload_counter == _q->payload_sym_len) {
             // decode payload and invoke callback
             origflexframesync_decode_payload(_q);
 
@@ -869,15 +883,19 @@ void origflexframesync_execute_rxpayload(origflexframesync _q,
 // decode header
 void origflexframesync_decode_header(origflexframesync _q)
 {
-    if (!_q->header_soft) {
-        // soft decoding operates on 'header_mod' array directly;
-        // no need to pack bits
-        // pack 256 1-bit header symbols into 32 8-bit bytes
+    if (_q->header_soft) {
+        _q->header_valid =
+            packetizer_decode_soft(_q->p_header, _q->header_mod, _q->header);
+    } else {
         unsigned int num_written;
-        liquid_pack_bytes(_q->header_mod, _q->header_mod_len,
-                          _q->header_enc, _q->header_enc_len,
-                          &num_written);
+        unsigned int bps = modulation_types[_q->header_props.mod_scheme].bps;
+        liquid_repack_bytes(_q->header_mod, bps, _q->header_mod_len,
+                            _q->header_enc, 8,   _q->header_enc_len,
+                            &num_written);
         assert(num_written==_q->header_enc_len);
+
+        _q->header_valid =
+            packetizer_decode(_q->p_header, _q->header_enc, _q->header);
     }
 
 #if DEBUG_ORIGFLEXFRAMESYNC_PRINT
@@ -888,15 +906,6 @@ void origflexframesync_decode_header(origflexframesync _q)
         printf("%.2X ", _q->header_enc[i]);
     printf("\n");
 #endif
-
-    // unscramble header and run packet decoder
-    if (_q->header_soft)
-        // soft demodulation operates on header_mod directly
-        _q->header_valid =
-            packetizer_decode_soft(_q->p_header, _q->header_mod, _q->header);
-    else
-        _q->header_valid =
-            packetizer_decode(_q->p_header, _q->header_enc, _q->header);
 
     // return if header is invalid
     if (!_q->header_valid)
@@ -969,11 +978,17 @@ void origflexframesync_decode_header(origflexframesync _q)
                                             _q->fec1);
 
         // re-compute payload encoded message length
+        unsigned int bps = _q->bps_payload;
+    
         _q->payload_enc_len = packetizer_get_enc_msg_len(_q->p_payload);
-
-        // re-compute number of modulated payload symbols
-        div_t d = div(8*_q->payload_enc_len, _q->bps_payload);
-        _q->payload_mod_len = d.quot + (d.rem ? 1 : 0);
+        div_t bps_d = div(_q->payload_enc_len*8, bps);
+        _q->payload_sym_len = bps_d.quot + (bps_d.rem ? 1 : 0);
+        
+        if (_q->payload_soft) {
+            _q->payload_mod_len = bps*_q->payload_sym_len;
+        } else {
+            _q->payload_mod_len = _q->payload_sym_len;
+        }
         
         // re-allocate buffers accordingly
         // (give encoded a few extra bytes to compensate for repacking)
@@ -1012,14 +1027,15 @@ void origflexframesync_decode_payload(origflexframesync _q)
 {
     if (_q->payload_soft)
         _q->payload_valid = packetizer_decode_soft(_q->p_payload,
-                                                   _q->payload_enc,
+                                                   _q->payload_mod,
                                                    _q->payload_dec);
     else {
         // pack (8-bit) bytes from (bps_payload-bit) symbols
         unsigned int num_written;
         liquid_repack_bytes(_q->payload_mod, _q->bps_payload, _q->payload_mod_len,
-                            _q->payload_enc, 8,               _q->payload_enc_len+8,
+                            _q->payload_enc, 8,               _q->payload_enc_len,
                             &num_written);
+        assert(num_written==_q->payload_enc_len);
 
         // decode payload
         _q->payload_valid = packetizer_decode(_q->p_payload,
