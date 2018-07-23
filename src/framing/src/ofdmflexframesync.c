@@ -89,6 +89,7 @@ struct ofdmflexframesync_s {
     unsigned int header_user_len;       // header length (user)
     unsigned int header_dec_len;        // header length (uncoded)
     unsigned int header_enc_len;        // header length (encoded)
+    unsigned int header_mod_len;        // header length (modulated)
     unsigned int header_sym_len;        // header length (symbols)
     int header_valid;                   // valid header flag
 
@@ -266,18 +267,22 @@ void ofdmflexframesync_set_header_len(ofdmflexframesync _q,
                                      _q->header_props.check,
                                      _q->header_props.fec0,
                                      _q->header_props.fec1);
+    
+    unsigned int bps = modulation_types[_q->header_props.mod_scheme].bps;
+    
+    _q->header_enc_len = packetizer_get_enc_msg_len(_q->p_header);
+    div_t bps_d = div(_q->header_enc_len*8, bps);
+    _q->header_sym_len = bps_d.quot + (bps_d.rem ? 1 : 0);
+    
     if (_q->header_soft) {
-        _q->header_enc_len = 8*packetizer_get_enc_msg_len(_q->p_header);
-        _q->header_sym_len = _q->header_enc_len;
+        _q->header_mod_len = bps*_q->header_sym_len;
     } else {
-        _q->header_enc_len = packetizer_get_enc_msg_len(_q->p_header);
-        unsigned int bps = modulation_types[_q->header_props.mod_scheme].bps;
-        div_t bps_d = div(_q->header_enc_len*8, bps);
-        _q->header_sym_len = bps_d.quot + (bps_d.rem ? 1 : 0);
+        _q->header_mod_len = _q->header_sym_len;
     }
+    
     _q->header_enc = realloc(_q->header_enc, _q->header_enc_len*sizeof(unsigned char));
-
-    _q->header_mod = realloc(_q->header_mod, _q->header_sym_len*sizeof(unsigned char));
+    _q->header_mod = realloc(_q->header_mod, _q->header_mod_len*sizeof(unsigned char));
+    
     // create header objects
     if (_q->mod_header) {
         modem_destroy(_q->mod_header);
@@ -520,19 +525,17 @@ void ofdmflexframesync_rxheader(ofdmflexframesync _q,
 // decode header
 void ofdmflexframesync_decode_header(ofdmflexframesync _q)
 {
+    unsigned int bps = modulation_types[_q->header_props.mod_scheme].bps;
+        
     if (_q->header_soft) {
-        // TODO: ensure lengths are the same
-        memmove(_q->header_enc, _q->header_mod, _q->header_enc_len);
-
         // unscramble header using soft bits
-        unscramble_data_soft(_q->header_enc, _q->header_enc_len/8);
+        unscramble_data_soft(_q->header_mod, _q->header_mod_len/bps);
 
         // run packet decoder
-        _q->header_valid = packetizer_decode_soft(_q->p_header, _q->header_enc, _q->header);
+        _q->header_valid = packetizer_decode_soft(_q->p_header, _q->header_mod, _q->header);
     } else {
         // pack 1-bit header symbols into 8-bit bytes
         unsigned int num_written;
-        unsigned int bps = modulation_types[_q->header_props.mod_scheme].bps;
         liquid_repack_bytes(_q->header_mod, bps, _q->header_sym_len,
                             _q->header_enc, 8,   _q->header_enc_len,
                             &num_written);
