@@ -1033,9 +1033,9 @@ void origflexframesync_decode_payload(origflexframesync _q)
         // pack (8-bit) bytes from (bps_payload-bit) symbols
         unsigned int num_written;
         liquid_repack_bytes(_q->payload_mod, _q->bps_payload, _q->payload_mod_len,
-                            _q->payload_enc, 8,               _q->payload_enc_len,
+                            _q->payload_enc, 8,               _q->payload_enc_len+8,
                             &num_written);
-        assert(num_written==_q->payload_enc_len);
+        //assert(num_written==_q->payload_enc_len);
 
         // decode payload
         _q->payload_valid = packetizer_decode(_q->p_payload,
