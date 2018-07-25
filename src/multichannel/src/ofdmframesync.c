@@ -777,9 +777,6 @@ void ofdmframesync_execute_rxsymbols(ofdmframesync _q)
             }
         }
 #endif
-        // update packet end counter
-        _q->end_counter++;
-
         // invoke callback
         if (_q->callback != NULL) {
             int retval = _q->callback(_q->X, _q->p, _q->M, _q->userdata);
@@ -1032,9 +1029,6 @@ void ofdmframesync_estimate_eqgain_poly(ofdmframesync _q,
 // recover symbol, correcting for gain, pilot phase, etc.
 void ofdmframesync_rxsymbol(ofdmframesync _q)
 {
-    // update packet end counter
-    _q->end_counter++;
-
     // apply gain
     unsigned int i;
     for (i=0; i<_q->M; i++)
