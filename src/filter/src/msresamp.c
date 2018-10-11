@@ -79,9 +79,15 @@ struct MSRESAMP(_s) {
 //  TODO: add signal bandwidth parameter?
 //  TODO: add center frequency parameter; facilitates DDS object synthesis
 //  _r              :   resampling rate [output/input]
+//  _m              :   prototype filter semi-length
+//  _fc             :   prototype filter cutoff frequency, fc in (0, 0.5)
 //  _As             :   stop-band attenuation
-MSRESAMP() MSRESAMP(_create)(float _r,
-                             float _As)
+//  _npfb           :   number of filters in polyphase filterbank
+MSRESAMP() MSRESAMP(_create)(float        _r,
+                             unsigned int _m,
+                             float        _fc,
+                             float        _As,
+                             unsigned int _npfb)
 {
     // validate input
     if (_r <= 0.0f) {
@@ -129,12 +135,12 @@ MSRESAMP() MSRESAMP(_create)(float _r,
     // TODO: compute appropriate cut-off frequency
     q->halfband_resamp = MSRESAMP2(_create)(q->type,
                                             q->num_halfband_stages,
-                                            0.4f, 0.0f, q->As);
+                                            _fc, 0.0f, q->As);
 
     // create arbitrary resampler object
     // TODO: compute appropriate parameters
     q->arbitrary_resamp = RESAMP(_create)(q->rate_arbitrary,
-                                          7,
+                                          _m,
                                           min(0.515f*q->rate_arbitrary,0.49f),
                                           q->As,
                                           64);

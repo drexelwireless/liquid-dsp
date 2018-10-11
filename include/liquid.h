@@ -3967,10 +3967,16 @@ LIQUID_MSRESAMP2_DEFINE_API(LIQUID_MSRESAMP2_MANGLE_CCCF,
 typedef struct MSRESAMP(_s) * MSRESAMP();                                   \
                                                                             \
 /* Create multi-stage arbitrary resampler                               */  \
-/*  _r      :   resampling rate (output/input), _r > 0                  */  \
-/*  _As     :   stop-band attenuation [dB], _As > 0                     */  \
-MSRESAMP() MSRESAMP(_create)(float _r,                                      \
-                             float _As);                                    \
+/*  _rate   : arbitrary resampling rate,         0 < _rate              */  \
+/*  _m      : filter semi-length (delay),        0 < _m                 */  \
+/*  _fc     : filter cutoff frequency,           0 < _fc < 0.5          */  \
+/*  _As     : filter stop-band attenuation [dB], 0 < _As                */  \
+/*  _npfb   : number of filters in the bank,     0 < _npfb              */  \
+MSRESAMP() MSRESAMP(_create)(float        _r,                               \
+                             unsigned int _m,                               \
+                             float        _fc,                              \
+                             float        _As,                              \
+                             unsigned int _npfb);                           \
                                                                             \
 /* Destroy multi-stage arbitrary resampler                              */  \
 void MSRESAMP(_destroy)(MSRESAMP() _q);                                     \
