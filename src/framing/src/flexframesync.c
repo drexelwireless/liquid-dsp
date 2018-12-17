@@ -599,18 +599,10 @@ void flexframesync_execute_rxheader(flexframesync _q,
         _q->symbol_counter++;
 
         if (_q->symbol_counter == _q->header_sym_len) {
+            int continue_decode = 0;
+
             // decode header
             flexframesync_decode_header(_q);
-
-            if (_q->header_valid) {
-                // continue on to decoding payload
-                _q->symbol_counter = 0;
-                _q->state = FLEXFRAMESYNC_STATE_RXPAYLOAD;
-                return;
-            }
-
-            // update statistics
-            _q->framedatastats.num_frames_detected++;
 
             // header invalid: invoke callback
             if (_q->callback != NULL) {
@@ -629,18 +621,24 @@ void flexframesync_execute_rxheader(flexframesync _q,
                 _q->framesyncstats.end_counter   = _q->end_counter;
 
                 // invoke callback method
-                _q->callback(_q->header_dec,
-                             _q->header_valid,
-                             NULL,  // payload
-                             0,     // payload length
-                             0,     // payload valid,
-                             _q->framesyncstats,
-                             _q->userdata);
+                continue_decode = _q->callback(_q->header_dec,
+                                               _q->header_valid,
+                                               _q->header_valid,
+                                               NULL,  // payload
+                                               0,     // payload length
+                                               0,     // payload valid,
+                                               _q->framesyncstats,
+                                               _q->userdata);
             }
 
-            // reset frame synchronizer
-            flexframesync_reset(_q);
-            return;
+            if (!_q->header_valid || !continue_decode) {
+                _q->framedatastats.num_frames_detected++;
+                flexframesync_reset(_q);
+            } else {
+                // continue on to decoding payload
+                _q->symbol_counter = 0;
+                _q->state = FLEXFRAMESYNC_STATE_RXPAYLOAD;
+            }
         }
     }
 }
@@ -828,6 +826,7 @@ void flexframesync_execute_rxpayload(flexframesync _q,
                 // invoke callback method
                 _q->callback(_q->header_dec,
                              _q->header_valid,
+                             0,
                              _q->payload_dec,
                              _q->payload_dec_len,
                              _q->payload_valid,

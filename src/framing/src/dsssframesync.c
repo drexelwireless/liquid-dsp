@@ -424,15 +424,7 @@ void dsssframesync_execute_rxheader(dsssframesync _q, liquid_float_complex _x)
         return;
     }
 
-    if (_q->header_valid) {
-        _q->symbol_counter = 0;
-        _q->state = DSSSFRAMESYNC_STATE_RXPAYLOAD;
-        return;
-    }
-
-    // if not taken, header is NOT valid
-
-    ++_q->framedatastats.num_frames_detected;
+    int continue_decode = 0;
 
     if (_q->callback != NULL) {
         _q->framesyncstats.evm           = 0.f;
@@ -444,11 +436,23 @@ void dsssframesync_execute_rxheader(dsssframesync _q, liquid_float_complex _x)
         _q->framesyncstats.fec0          = LIQUID_FEC_UNKNOWN;
         _q->framesyncstats.fec1          = LIQUID_FEC_UNKNOWN;
 
-        _q->callback(
-            _q->header_dec, _q->header_valid, NULL, 0, 0, _q->framesyncstats, _q->userdata);
+        continue_decode = _q->callback(_q->header_dec,
+                                       _q->header_valid,
+                                       _q->header_valid,
+                                       NULL,
+                                       0,
+                                       0,
+                                       _q->framesyncstats,
+                                       _q->userdata);
     }
 
-    dsssframesync_reset(_q);
+    if (!_q->header_valid || !continue_decode) {
+        ++_q->framedatastats.num_frames_detected;
+        dsssframesync_reset(_q);
+    } else {
+        _q->symbol_counter = 0;
+        _q->state = DSSSFRAMESYNC_STATE_RXPAYLOAD;
+    }
 }
 
 int dsssframesync_decode_header(dsssframesync _q)
@@ -554,6 +558,7 @@ void dsssframesync_execute_rxpayload(dsssframesync _q, liquid_float_complex _x)
     if (_q->callback != NULL) {
         _q->callback(_q->header_dec,
                      _q->header_valid,
+                     0,
                      _q->payload_dec,
                      _q->payload_dec_len,
                      _q->payload_valid,

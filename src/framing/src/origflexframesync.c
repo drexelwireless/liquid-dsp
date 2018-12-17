@@ -751,11 +751,13 @@ void origflexframesync_execute_rxheader(origflexframesync _q,
         _q->header_counter++;
 
         if (_q->header_counter == _q->header_sym_len) {
+            int continue_decode = 0;
+
             // decode header and invoke callback
             origflexframesync_decode_header(_q);
             
-            // invoke callback if header is invalid
-            if (!_q->header_valid && _q->callback != NULL) {
+            // invoke callback
+            if (_q->callback != NULL) {
                 // set framestats internals
                 _q->framestats.evm           = 20*log10f(sqrtf(_q->framestats.evm / _q->header_mod_len));
                 _q->framestats.rssi          = 20*log10f(_q->gamma_hat);
@@ -773,23 +775,21 @@ void origflexframesync_execute_rxheader(origflexframesync _q,
                 _q->framestats.end_counter = _q->end_counter;
 
                 // invoke callback method
-                _q->callback(_q->header,
-                             _q->header_valid,
-                             NULL,
-                             0,
-                             0,
-                             _q->framestats,
-                             _q->userdata);
+                continue_decode = _q->callback(_q->header,
+                                               _q->header_valid,
+                                               _q->header_valid,
+                                               NULL,
+                                               0,
+                                               0,
+                                               _q->framestats,
+                                               _q->userdata);
             }
             
-            if (!_q->header_valid) {
+            if (!_q->header_valid || !continue_decode)
                 origflexframesync_reset(_q);
-                return;
-            }
-
-            
-            // update state
-            _q->state = STATE_RXPAYLOAD;
+            else
+                // update state
+                _q->state = STATE_RXPAYLOAD;
         }
     }
 }
@@ -866,6 +866,7 @@ void origflexframesync_execute_rxpayload(origflexframesync _q,
                 // invoke callback method
                 _q->callback(_q->header,
                              _q->header_valid,
+                             0,
                              _q->payload_dec,
                              _q->payload_dec_len,
                              _q->payload_valid,

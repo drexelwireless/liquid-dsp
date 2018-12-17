@@ -449,6 +449,7 @@ void framesync64_execute_rxpayload(framesync64   _q,
                 // invoke callback method
                 _q->callback(&_q->payload_dec[0],   // header is first 8 bytes
                              _q->payload_valid,
+                             0,
                              &_q->payload_dec[8],   // payload is last 64 bytes
                              64,
                              _q->payload_valid,
