@@ -4359,6 +4359,7 @@ void framedatastats_print(framedatastats_s * _stats);
 //  _userdata       :   pointer to userdata
 typedef int (*framesync_callback)(unsigned char *  _header,
                                   int              _header_valid,
+                                  int              _header_test,
                                   unsigned char *  _payload,
                                   unsigned int     _payload_len,
                                   int              _payload_valid,

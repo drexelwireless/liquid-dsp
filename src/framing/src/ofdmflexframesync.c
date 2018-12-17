@@ -481,17 +481,15 @@ void ofdmflexframesync_rxheader(ofdmflexframesync _q,
 
             // header extracted
             if (_q->header_symbol_index == _q->header_sym_len) {
+                int continue_decode = 0;
+
                 // decode header
                 ofdmflexframesync_decode_header(_q);
             
                 // compute error vector magnitude estimate
                 _q->framestats.evm = 10*log10f( _q->evm_hat/_q->header_sym_len );
 
-                // invoke callback if header is invalid
-                if (_q->header_valid)
-                    _q->state = OFDMFLEXFRAMESYNC_STATE_PAYLOAD;
-                else {
-                    //printf("**** header invalid!\n");
+                if (_q->callback != NULL) {
                     // set framestats internals
                     _q->framestats.rssi             = ofdmframesync_get_rssi(_q->fs);
                     _q->framestats.cfo              = ofdmframesync_get_cfo(_q->fs);
@@ -506,16 +504,21 @@ void ofdmflexframesync_rxheader(ofdmflexframesync _q,
                     _q->framestats.end_counter      = ofdmframesync_get_end_counter(_q->fs);
 
                     // invoke callback method
-                    _q->callback(_q->header,
-                                 _q->header_valid,
-                                 NULL,
-                                 0,
-                                 0,
-                                 _q->framestats,
-                                 _q->userdata);
-
-                    ofdmflexframesync_reset(_q);
+                    continue_decode = _q->callback(_q->header,
+                                                   _q->header_valid,
+                                                   _q->header_valid,
+                                                   NULL,
+                                                   0,
+                                                   0,
+                                                   _q->framestats,
+                                                   _q->userdata);
                 }
+
+                if (!_q->header_valid || !continue_decode)
+                    ofdmflexframesync_reset(_q);
+                else
+                    _q->state = OFDMFLEXFRAMESYNC_STATE_PAYLOAD;
+
                 break;
             }
         }
@@ -739,6 +742,7 @@ void ofdmflexframesync_rxpayload(ofdmflexframesync _q,
                 // invoke callback method
                 _q->callback(_q->header,
                              _q->header_valid,
+                             0,
                              _q->payload_dec,
                              _q->payload_len,
                              _q->payload_valid,

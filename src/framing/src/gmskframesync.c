@@ -657,12 +657,15 @@ void gmskframesync_execute_rxheader(gmskframesync _q,
 
         // increment header counter
         _q->header_counter++;
+
         if (_q->header_counter == _q->header_mod_len) {
             // decode header
             gmskframesync_decode_header(_q);
 
             // invoke callback if header is invalid
-            if (!_q->header_valid && _q->callback != NULL) {
+            int continue_decode = 0;
+
+            if (_q->callback != NULL) {
                 // set framestats internals
                 _q->framestats.rssi          = 20*log10f(_q->gamma_hat);
                 _q->framestats.evm           = 0.0f;
@@ -675,25 +678,22 @@ void gmskframesync_execute_rxheader(gmskframesync _q,
                 _q->framestats.fec1          = LIQUID_FEC_UNKNOWN;
 
                 // invoke callback method
-                _q->callback(_q->header_dec,
-                             _q->header_valid,
-                             NULL,
-                             0,
-                             0,
-                             _q->framestats,
-                             _q->userdata);
-
-                gmskframesync_reset(_q);
+                continue_decode = _q->callback(_q->header_dec,
+                                               _q->header_valid,
+                                               _q->header_valid,
+                                               NULL,
+                                               0,
+                                               0,
+                                               _q->framestats,
+                                               _q->userdata);
             }
 
             // reset if invalid
-            if (!_q->header_valid) {
+            if (!_q->header_valid || !continue_decode)
                 gmskframesync_reset(_q);
-                return;
-            }
-
-            // update state
-            _q->state = STATE_RXPAYLOAD;
+            else
+                // update state
+                _q->state = STATE_RXPAYLOAD;
         }
     }
 }
@@ -750,6 +750,7 @@ void gmskframesync_execute_rxpayload(gmskframesync _q,
                 // invoke callback method
                 _q->callback(_q->header_dec,
                              _q->header_valid,
+                             0,
                              _q->payload_dec,
                              _q->payload_dec_len,
                              _q->payload_valid,
