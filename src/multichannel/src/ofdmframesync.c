@@ -90,8 +90,9 @@ struct ofdmframesync_s {
     } state;
 
     // Frame offset
-    unsigned int start_counter; // counter: num of samples before start of frame
-    unsigned int end_counter;   // counter: number of samples through end of frame
+    unsigned int sample_counter; // counter: number of samples run through the synchronizer
+    unsigned int start_counter;  // counter: number of samples before start of frame
+    unsigned int end_counter;    // counter: number of samples through end of frame
 
     // synchronizer objects
     nco_crcf nco_rx;        // numerically-controlled oscillator
@@ -354,9 +355,8 @@ void ofdmframesync_reset(ofdmframesync _q)
     // reset state
     _q->state = OFDMFRAMESYNC_STATE_SEEKPLCP;
 
-    // reset frame offset
-    _q->start_counter = 0;
-    _q->end_counter = 0;
+    // reset sample counter
+    _q->sample_counter = 0;
 }
 
 int ofdmframesync_is_frame_open(ofdmframesync _q)
@@ -381,6 +381,7 @@ void ofdmframesync_execute(ofdmframesync _q,
 
         // save input sample to buffer
         windowcf_push(_q->input_buffer,x);
+        _q->sample_counter++;
 
 #if DEBUG_OFDMFRAMESYNC
         if (_q->debug_enabled) {
@@ -440,9 +441,6 @@ unsigned int ofdmframesync_get_end_counter(ofdmframesync _q)
 // frame detection
 void ofdmframesync_execute_seekplcp(ofdmframesync _q)
 {
-    // update packet start counter
-    _q->start_counter++;
-
     _q->timer++;
 
     if (_q->timer < _q->M)
@@ -503,8 +501,7 @@ void ofdmframesync_execute_seekplcp(ofdmframesync _q)
         _q->state = OFDMFRAMESYNC_STATE_PLCPSHORT0;
 
         // update packet end counter
-        _q->end_counter = _q->start_counter;
-        _q->start_counter -= _q->M + _q->cp_len;
+        _q->start_counter = _q->sample_counter - (_q->M + _q->cp_len);
 
 #if DEBUG_OFDMFRAMESYNC_PRINT
         printf("********** frame detected! ************\n");
@@ -523,9 +520,6 @@ void ofdmframesync_execute_seekplcp(ofdmframesync _q)
 // frame detection
 void ofdmframesync_execute_S0a(ofdmframesync _q)
 {
-    // update packet end counter
-    _q->end_counter++;
-
     //printf("t : %u\n", _q->timer);
     _q->timer++;
 
@@ -574,9 +568,6 @@ void ofdmframesync_execute_S0a(ofdmframesync _q)
 // frame detection
 void ofdmframesync_execute_S0b(ofdmframesync _q)
 {
-    // update packet end counter
-    _q->end_counter++;
-
     //printf("t = %u\n", _q->timer);
     _q->timer++;
 
@@ -657,9 +648,6 @@ void ofdmframesync_execute_S0b(ofdmframesync _q)
 
 void ofdmframesync_execute_S1(ofdmframesync _q)
 {
-    // update packet end counter
-    _q->end_counter++;
-
     _q->timer--;
 
     if (_q->timer > 0)
@@ -743,7 +731,12 @@ void ofdmframesync_execute_S1(ofdmframesync _q)
 #if DEBUG_OFDMFRAMESYNC_PRINT
         printf("could not find S1 symbol. bailing...\n");
 #endif
+        // Save and restore sample counter
+        unsigned sample_counter = _q->sample_counter;
+        
         ofdmframesync_reset(_q);
+
+        _q->sample_counter = sample_counter;
     }
 
     // 'reset' timer (wait another half symbol)
@@ -752,9 +745,6 @@ void ofdmframesync_execute_S1(ofdmframesync _q)
 
 void ofdmframesync_execute_rxsymbols(ofdmframesync _q)
 {
-    // update packet end counter
-    _q->end_counter++;
-
     // wait for timeout
     _q->timer--;
 
@@ -779,6 +769,8 @@ void ofdmframesync_execute_rxsymbols(ofdmframesync _q)
         }
 #endif
         // invoke callback
+        _q->end_counter = _q->sample_counter;
+
         if (_q->callback != NULL) {
             int retval = _q->callback(_q->X, _q->p, _q->M, _q->userdata);
 
