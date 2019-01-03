@@ -504,6 +504,7 @@ void ofdmframesync_execute_seekplcp(ofdmframesync _q)
 
         // update packet end counter
         _q->end_counter = _q->start_counter;
+        _q->start_counter -= _q->M + _q->cp_len;
 
 #if DEBUG_OFDMFRAMESYNC_PRINT
         printf("********** frame detected! ************\n");
