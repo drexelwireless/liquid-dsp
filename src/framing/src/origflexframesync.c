@@ -337,6 +337,11 @@ void origflexframesync_reset(origflexframesync _q)
     _q->framestats.evm = 0.0f;
 }
 
+int origflexframesync_is_frame_open(origflexframesync _q)
+{
+    return (_q->state == STATE_DETECTFRAME) ? 0 : 1;
+}
+
 // change length of user-defined region in header
 void origflexframesync_set_header_len(origflexframesync _q,
                                       unsigned int  _len)
