@@ -4660,6 +4660,9 @@ void origflexframesync_print(origflexframesync _q);
 // reset frame synchronizer internal state
 void origflexframesync_reset(origflexframesync _q);
 
+// has frame been detected?
+int origflexframesync_is_frame_open(origflexframesync _q);
+
 // change length of user-defined region in header
 void origflexframesync_set_header_len(origflexframesync _q,
                                       unsigned int  _len);
