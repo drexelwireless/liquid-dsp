@@ -229,6 +229,9 @@ origflexframesync origflexframesync_create(framesync_callback _callback,
     q->header_mod = NULL;
     q->header_user_len = ORIGFLEXFRAME_H_USER_DEFAULT;
     q->header_soft = 0;
+#if DEBUG_FLEXFRAMESYNC
+    q->header_sym = NULL;
+#endif
     origflexframesync_set_header_props(q, NULL);
 
     // frame properties (default values to be overwritten when frame
