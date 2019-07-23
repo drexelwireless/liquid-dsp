@@ -511,7 +511,10 @@ void ofdmflexframesync_rxheader(ofdmflexframesync _q,
                                                    0,
                                                    0,
                                                    _q->framestats,
-                                                   _q->userdata);
+                                                   _q->userdata,
+                                                   ofdmframesync_get_num_subcarriers(_q->fs),
+                                                   ofdmframesync_get_channel(_q->fs),
+                                                   ofdmframesync_get_channel_estimate(_q->fs));
                 }
 
                 if (!_q->header_valid || !continue_decode)
@@ -747,7 +750,10 @@ void ofdmflexframesync_rxpayload(ofdmflexframesync _q,
                              _q->payload_len,
                              _q->payload_valid,
                              _q->framestats,
-                             _q->userdata);
+                             _q->userdata,
+                             ofdmframesync_get_num_subcarriers(_q->fs),
+                             ofdmframesync_get_channel(_q->fs),
+                             ofdmframesync_get_channel_estimate(_q->fs));
 
 
                 // reset object

@@ -443,7 +443,10 @@ void dsssframesync_execute_rxheader(dsssframesync _q, liquid_float_complex _x)
                                        0,
                                        0,
                                        _q->framesyncstats,
-                                       _q->userdata);
+                                       _q->userdata,
+                                       0,
+                                       NULL,
+                                       NULL);
     }
 
     if (!_q->header_valid || !continue_decode) {
@@ -563,7 +566,10 @@ void dsssframesync_execute_rxpayload(dsssframesync _q, liquid_float_complex _x)
                      _q->payload_dec_len,
                      _q->payload_valid,
                      _q->framesyncstats,
-                     _q->userdata);
+                     _q->userdata,
+                     0,
+                     NULL,
+                     NULL);
     }
 
     dsssframesync_reset(_q);

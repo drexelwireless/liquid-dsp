@@ -4357,6 +4357,9 @@ void framedatastats_print(framedatastats_s * _stats);
 //  _payload_valid  :   is payload valid? (0:no, 1:yes)
 //  _stats          :   frame statistics object
 //  _userdata       :   pointer to userdata
+//  _M              :   number of OFDM subcarriers
+//  _G              :   channel
+//  _G_hat          :   channel estimate
 typedef int (*framesync_callback)(unsigned char *  _header,
                                   int              _header_valid,
                                   int              _header_test,
@@ -4364,7 +4367,10 @@ typedef int (*framesync_callback)(unsigned char *  _header,
                                   unsigned int     _payload_len,
                                   int              _payload_valid,
                                   framesyncstats_s _stats,
-                                  void *           _userdata);
+                                  void *           _userdata,
+                                  unsigned int           _M,
+                                  liquid_float_complex * _G,
+                                  liquid_float_complex * _G_hat);
 
 // framesync csma callback functions invoked when signal levels is high or low
 //  _userdata       :   user-defined data pointer
@@ -7427,6 +7433,9 @@ float ofdmframesync_get_rssi(ofdmframesync _q); // received signal strength indi
 float ofdmframesync_get_cfo(ofdmframesync _q);  // carrier offset estimate
 unsigned int ofdmframesync_get_start_counter(ofdmframesync _q);  // sample offset to start of packet
 unsigned int ofdmframesync_get_end_counter(ofdmframesync _q);  // sample offset to end of packet
+unsigned int ofdmframesync_get_num_subcarriers(ofdmframesync _q);
+liquid_float_complex* ofdmframesync_get_channel(ofdmframesync _q);
+liquid_float_complex* ofdmframesync_get_channel_estimate(ofdmframesync _q);
 
 // debugging
 void ofdmframesync_debug_enable(ofdmframesync _q);

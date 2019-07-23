@@ -685,7 +685,10 @@ void gmskframesync_execute_rxheader(gmskframesync _q,
                                                0,
                                                0,
                                                _q->framestats,
-                                               _q->userdata);
+                                               _q->userdata,
+                                               0,
+                                               NULL,
+                                               NULL);
             }
 
             // reset if invalid
@@ -755,7 +758,10 @@ void gmskframesync_execute_rxpayload(gmskframesync _q,
                              _q->payload_dec_len,
                              _q->payload_valid,
                              _q->framestats,
-                             _q->userdata);
+                             _q->userdata,
+                             0,
+                             NULL,
+                             NULL);
             }
 
             // reset frame synchronizer

@@ -790,7 +790,10 @@ void origflexframesync_execute_rxheader(origflexframesync _q,
                                                0,
                                                0,
                                                _q->framestats,
-                                               _q->userdata);
+                                               _q->userdata,
+                                               0,
+                                               NULL,
+                                               NULL);
             }
             
             if (!_q->header_valid || !continue_decode)
@@ -879,7 +882,10 @@ void origflexframesync_execute_rxpayload(origflexframesync _q,
                              _q->payload_dec_len,
                              _q->payload_valid,
                              _q->framestats,
-                             _q->userdata);
+                             _q->userdata,
+                             0,
+                             NULL,
+                             NULL);
             }
 
             // reset frame synchronizer

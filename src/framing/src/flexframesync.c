@@ -628,7 +628,10 @@ void flexframesync_execute_rxheader(flexframesync _q,
                                                0,     // payload length
                                                0,     // payload valid,
                                                _q->framesyncstats,
-                                               _q->userdata);
+                                               _q->userdata,
+                                               0,
+                                               NULL,
+                                               NULL);
             }
 
             if (!_q->header_valid || !continue_decode) {
@@ -831,7 +834,10 @@ void flexframesync_execute_rxpayload(flexframesync _q,
                              _q->payload_dec_len,
                              _q->payload_valid,
                              _q->framesyncstats,
-                             _q->userdata);
+                             _q->userdata,
+                             0,
+                             NULL,
+                             NULL);
             }
 
             // reset frame synchronizer
