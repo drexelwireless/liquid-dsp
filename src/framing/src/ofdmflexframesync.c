@@ -500,6 +500,7 @@ void ofdmflexframesync_rxheader(ofdmflexframesync _q,
                     _q->framestats.check            = LIQUID_CRC_UNKNOWN;
                     _q->framestats.fec0             = LIQUID_FEC_UNKNOWN;
                     _q->framestats.fec1             = LIQUID_FEC_UNKNOWN;
+                    _q->framestats.sample_counter   = ofdmframesync_get_sample_counter(_q->fs);
                     _q->framestats.start_counter    = ofdmframesync_get_start_counter(_q->fs);
                     _q->framestats.end_counter      = ofdmframesync_get_end_counter(_q->fs);
 
@@ -736,6 +737,7 @@ void ofdmflexframesync_rxpayload(ofdmflexframesync _q,
                 _q->framestats.check            = _q->check;
                 _q->framestats.fec0             = _q->fec0;
                 _q->framestats.fec1             = _q->fec1;
+                _q->framestats.sample_counter   = ofdmframesync_get_sample_counter(_q->fs);
                 _q->framestats.start_counter    = ofdmframesync_get_start_counter(_q->fs);
                 _q->framestats.end_counter      = ofdmframesync_get_end_counter(_q->fs);
 

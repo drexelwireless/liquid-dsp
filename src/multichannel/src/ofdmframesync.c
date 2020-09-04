@@ -424,6 +424,11 @@ float ofdmframesync_get_cfo(ofdmframesync _q)
     return nco_crcf_get_frequency(_q->nco_rx);
 }
 
+unsigned int ofdmframesync_get_sample_counter(ofdmframesync _q)
+{
+    return _q->sample_counter;
+}
+
 unsigned int ofdmframesync_get_start_counter(ofdmframesync _q)
 {
     return _q->start_counter;

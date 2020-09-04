@@ -4320,6 +4320,7 @@ typedef struct {
     unsigned int fec0;          // forward error-correction (inner)
     unsigned int fec1;          // forward error-correction (outer)
 
+    unsigned int sample_counter; // counter: count of samples consumed
     unsigned int start_counter; // counter: number of samples before start of frame
     unsigned int end_counter;   // counter: number of samples through end of frame
 } framesyncstats_s;
@@ -7425,6 +7426,7 @@ void ofdmframesync_execute(ofdmframesync _q,
 // query methods
 float ofdmframesync_get_rssi(ofdmframesync _q); // received signal strength indication
 float ofdmframesync_get_cfo(ofdmframesync _q);  // carrier offset estimate
+unsigned int ofdmframesync_get_sample_counter(ofdmframesync _q);  // sample offset of last consumed sample
 unsigned int ofdmframesync_get_start_counter(ofdmframesync _q);  // sample offset to start of packet
 unsigned int ofdmframesync_get_end_counter(ofdmframesync _q);  // sample offset to end of packet
 
