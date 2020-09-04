@@ -505,9 +505,6 @@ void ofdmframesync_execute_seekplcp(ofdmframesync _q)
         _q->timer += _q->M; // add delay to help ensure good S0 estimate
         _q->state = OFDMFRAMESYNC_STATE_PLCPSHORT0;
 
-        // update packet end counter
-        _q->start_counter = _q->sample_counter - (_q->M + _q->cp_len);
-
 #if DEBUG_OFDMFRAMESYNC_PRINT
         printf("********** frame detected! ************\n");
         printf("    s_hat   :   %12.8f <%12.8f>\n", cabsf(s_hat), cargf(s_hat));
@@ -696,6 +693,9 @@ void ofdmframesync_execute_S1(ofdmframesync _q)
         _q->timer = _q->M + _q->cp_len + _q->backoff;
         _q->num_symbols = 0;
 
+        // Update packet start counter
+        _q->start_counter = _q->sample_counter - (3*(_q->M + _q->cp_len) - _q->backoff);
+
         // normalize gain by subcarriers, apply timing backoff correction
         float g = (float)(_q->M) / sqrtf(_q->M_pilot + _q->M_data);
         for (i=0; i<_q->M; i++) {
@@ -774,7 +774,7 @@ void ofdmframesync_execute_rxsymbols(ofdmframesync _q)
         }
 #endif
         // invoke callback
-        _q->end_counter = _q->sample_counter;
+        _q->end_counter = _q->sample_counter-_q->backoff+_q->cp_len;
 
         if (_q->callback != NULL) {
             int retval = _q->callback(_q->X, _q->p, _q->M, _q->userdata);
