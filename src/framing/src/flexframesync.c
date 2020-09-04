@@ -617,6 +617,7 @@ void flexframesync_execute_rxheader(flexframesync _q,
                 _q->framesyncstats.check         = LIQUID_CRC_UNKNOWN;
                 _q->framesyncstats.fec0          = LIQUID_FEC_UNKNOWN;
                 _q->framesyncstats.fec1          = LIQUID_FEC_UNKNOWN;
+                _q->framesyncstats.sample_counter = _q->end_counter;
                 _q->framesyncstats.start_counter = _q->start_counter;
                 _q->framesyncstats.end_counter   = _q->end_counter;
 
@@ -820,6 +821,7 @@ void flexframesync_execute_rxpayload(flexframesync _q,
                 _q->framesyncstats.check         = qpacketmodem_get_crc(_q->payload_decoder);
                 _q->framesyncstats.fec0          = qpacketmodem_get_fec0(_q->payload_decoder);
                 _q->framesyncstats.fec1          = qpacketmodem_get_fec1(_q->payload_decoder);
+                _q->framesyncstats.sample_counter = _q->end_counter;
                 _q->framesyncstats.start_counter = _q->start_counter;
                 _q->framesyncstats.end_counter   = _q->end_counter;
 

@@ -779,6 +779,7 @@ void origflexframesync_execute_rxheader(origflexframesync _q,
                 _q->framestats.fec0          = LIQUID_FEC_UNKNOWN;
                 _q->framestats.fec1          = LIQUID_FEC_UNKNOWN;
 
+                _q->framestats.sample_counter = _q->end_counter;
                 _q->framestats.start_counter = _q->start_counter;
                 _q->framestats.end_counter = _q->end_counter;
 
@@ -868,6 +869,7 @@ void origflexframesync_execute_rxpayload(origflexframesync _q,
                 _q->framestats.fec0          = _q->fec0;
                 _q->framestats.fec1          = _q->fec1;
 
+                _q->framestats.sample_counter = _q->end_counter;
                 _q->framestats.start_counter = _q->start_counter;
                 _q->framestats.end_counter = _q->end_counter;
 
