@@ -495,9 +495,6 @@ void origflexframesync_execute_seekpn(origflexframesync _q,
         //printf("***** frame detected! tau-hat:%8.4f, dphi-hat:%8.4f, gamma:%8.2f dB\n",
         //        _q->tau_hat, _q->dphi_hat, 20*log10f(_q->gamma_hat));
 
-        // update packet end counter
-        _q->end_counter = _q->start_counter;
-
         // push buffered samples through synchronizer
         // NOTE: this will set internal state appropriately
         //       to STATE_DETECTFRAME
@@ -620,6 +617,9 @@ void origflexframesync_pushpn(origflexframesync _q)
     // set state (still need a few more samples before entire p/n
     // sequence has been received)
     _q->state = STATE_RXPN;
+
+    // update packet end counter
+    _q->end_counter = _q->start_counter;
 }
 
 // execute synchronizer, receiving p/n sequence
@@ -658,6 +658,13 @@ void origflexframesync_execute_rxpn(origflexframesync _q,
         if (_q->pn_counter == 64) {
             origflexframesync_syncpn(_q);
             _q->state = STATE_RXHEADER;
+
+            // Compute delay as used above in origflexframesync_pushpn
+            unsigned int delay = 2*_q->k*_q->m - 1;
+            // p/n sequence is 64 symbols upsampled 2x
+            unsigned pnsamples = 2*64;
+
+            _q->start_counter = _q->end_counter - (delay + pnsamples);
         }
     }
 }
