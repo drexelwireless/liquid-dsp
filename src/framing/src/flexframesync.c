@@ -455,9 +455,6 @@ void flexframesync_execute_seekpn(flexframesync _q,
             _q->tau_hat, _q->dphi_hat, 20*log10f(_q->gamma_hat));
 #endif
 
-    // update packet end counter
-    _q->end_counter = _q->start_counter;
-
     // set appropriate filterbank index
     if (_q->tau_hat > 0) {
         _q->pfb_index = (unsigned int)(      _q->tau_hat  * _q->npfb) % _q->npfb;
@@ -483,7 +480,13 @@ void flexframesync_execute_seekpn(flexframesync _q,
 #endif
     // run buffered samples through synchronizer
     unsigned int buf_len = qdetector_cccf_get_buf_len(_q->detector);
+
+    unsigned int old_start_counter = _q->start_counter;
+
     flexframesync_execute(_q, v, buf_len);
+
+    _q->start_counter = old_start_counter - buf_len;
+    _q->end_counter = old_start_counter;
 #if DEBUG_FLEXFRAMESYNC
     _q->debug_qdetector_flush = 0;
 #endif
@@ -540,8 +543,8 @@ int flexframesync_step(flexframesync   _q,
 void flexframesync_execute_rxpreamble(flexframesync _q,
                                       float complex _x)
 {
-    // update packet end counter
-    _q->end_counter++;
+    // update packet start counter
+    _q->start_counter++;
 
     // step synchronizer
     float complex mf_out = 0.0f;
